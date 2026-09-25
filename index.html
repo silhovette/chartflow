@@ -13,6 +13,7 @@
     <script defer src="editor.js"></script>
     <script defer src="progress.js"></script>
     <script defer src="account.js"></script>
+    <script defer src="guide.js"></script>
     <script defer src="app.js"></script>
   </head>
   <body>
@@ -42,6 +43,13 @@
             ><small>Profile · Saves · Achievements</small></span
           ><span>↗</span>
         </button>
+        <button
+          class="guide-link"
+          data-action="help"
+          aria-label="Open beginner guide"
+        >
+          <span>?</span> <span class="guide-link-label">Beginner guide</span>
+        </button>
         <div class="local-status">
           <i class="led"></i> Local workspace
           <small>Your rhythms. On your device.</small>
@@ -67,6 +75,7 @@
       </footer>
     </div>
     <dialog id="dialog"></dialog>
+    <dialog id="guide" aria-labelledby="guide-title"></dialog>
     <div id="toast" role="status"></div>
     <input
       type="file"

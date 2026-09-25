@@ -127,3 +127,9 @@ The test suite covers timing and pause exclusion, chords and quantization confli
 ## Current scope
 
 Version 0.1 supports tap notes and a single BPM per chart. Audio consists of synthesized metronome and key feedback; audio-file synchronization is not implemented. Recording and editing are designed primarily for a desktop keyboard and mouse.
+
+### Beginner guide
+
+On first visit, an eight-page, full-viewport guide introduces creating, recording, finishing, playing, editing, and essential controls. Completing or skipping it is remembered for this browser and origin. Reopen it from the sidebar’s **Beginner guide** (`?` on small screens) or the home page’s **How it works** link. Opening the guide pauses live play/recording and stops editor preview; keyboard input stays inside the guide until it closes.
+
+Guide interaction and responsive layout checks: `node tests/guide.cjs`.

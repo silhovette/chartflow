@@ -705,11 +705,13 @@
     CF.ui.toast("Settings saved");
   }
   async function help() {
-    await CF.ui.dialog({
-      title: "From a pulse to a pattern.",
-      body: "<p><b>01 / Record</b><br>Create a chart. Your first lane key starts time at zero. Press P to pause, Enter to finish.</p><br><p><b>02 / Refine</b><br>Your performance is cleaned to 1/32 notes. Open the editor to select, move, add, and resnap notes. Every edit auto-saves.</p><br><p><b>03 / Play</b><br>Hit falling notes at the line. Perfect ±40 ms · Great ±85 ms · Good ±140 ms. Test from the editor and come straight back.</p>",
-      confirm: "Got it",
-    });
+    if (
+      ["record", "play"].includes(app.state) &&
+      ["running", "countin"].includes(app.session?.phase)
+    )
+      pause();
+    app.editor?.stop(app.audio);
+    CF.guide.open();
   }
   const actions = {
     account: () => CF.account.show(),
@@ -794,6 +796,7 @@
     return event.key.toLowerCase();
   }
   document.addEventListener("keydown", (e) => {
+    if ($("#guide").open) return;
     if (menuAnchor) {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -1137,6 +1140,7 @@
       await loadActiveProfile();
       library();
       requestAnimationFrame(frame);
+      await CF.guide.firstVisit();
     } catch (error) {
       setScreen(
         "error",

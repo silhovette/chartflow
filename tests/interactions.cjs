@@ -15,6 +15,7 @@ const { pathToFileURL } = require("node:url");
     errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("http://127.0.0.1:4173");
+  await page.locator('#guide [data-guide="close"]').click();
   await page.waitForSelector(".chart-row");
   await page.locator('.chart-row [data-action="menu"]').first().click();
   await page.locator('#chart-menu [data-action="rename"]').click();

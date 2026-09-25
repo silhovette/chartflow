@@ -14,6 +14,7 @@ const path = require("node:path");
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto("http://127.0.0.1:4173");
+    await page.locator('#guide [data-guide="close"]').click();
     await page.waitForSelector(".chart-row");
     assert.ok((await page.locator(".topbar").boundingBox()).height <= 40);
     // Older saved settings acquire the new modes without resetting custom keys.

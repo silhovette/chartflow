@@ -9,6 +9,7 @@ const assert = require("node:assert/strict");
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto("http://127.0.0.1:4173");
+    await page.locator('#guide [data-guide="close"]').click();
     await page.waitForSelector(".chart-row");
     await page.locator('.page-heading [data-action="new"]').click();
     await page.locator('[name="name"]').fill("Saved pattern");
@@ -67,15 +68,13 @@ const assert = require("node:assert/strict");
       charts: (await CF.storage.all()).length,
     }));
     await page.locator('[data-account="import"]').click();
-    await page
-      .locator("#save-import")
-      .setInputFiles({
-        name: "bad.json",
-        mimeType: "application/json",
-        buffer: Buffer.from(
-          '{"format":"chartflow-save","version":1,"profile":{},"charts":[]}',
-        ),
-      });
+    await page.locator("#save-import").setInputFiles({
+      name: "bad.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(
+        '{"format":"chartflow-save","version":1,"profile":{},"charts":[]}',
+      ),
+    });
     await page.waitForFunction(() => !document.querySelector("#save-import"));
     assert.deepEqual(
       await page.evaluate(async () => ({

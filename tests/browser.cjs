@@ -17,6 +17,7 @@ const path = require("node:path");
   const artifacts = path.join(__dirname, "../artifacts", `run-${Date.now()}`);
   fs.mkdirSync(artifacts, { recursive: true });
   await page.goto("http://127.0.0.1:4173");
+  await page.locator('#guide [data-guide="close"]').click();
   await page.waitForSelector(".chart-row");
   await page.screenshot({
     path: path.join(artifacts, "library.png"),
