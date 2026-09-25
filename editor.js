@@ -34,6 +34,7 @@ CF.Editor = class {
     canvas.onpointerup = (e) => this.up(e);
     canvas.onpointercancel = () => {
       this.drag = null;
+      this.updateUI();
     };
     canvas.oncontextmenu = (e) => {
       e.preventDefault();
@@ -305,6 +306,11 @@ CF.Editor = class {
           }));
         this.previewFlashes = [];
         this.previewHits = [];
+        this.previewHead = 0;
+        this.previewEnd = this.previewNotes.reduce(
+          (end, n) => Math.max(end, n.ms),
+          CF.toMs(this.previewOrigin.cursor, this.chart.bpm),
+        );
       }
       this.clock.start();
       this.playing = true;
@@ -319,6 +325,10 @@ CF.Editor = class {
       this.preview = false;
       this.cursor = this.previewOrigin.cursor;
       this.offset = this.previewOrigin.offset;
+      this.previewNotes = [];
+      this.previewHits = [];
+      this.previewFlashes = [];
+      this.previewOrigin = null;
       audio.stop();
       this.updateUI();
     }
@@ -364,6 +374,7 @@ CF.Editor = class {
     return false;
   }
   updateUI() {
+    this.dirty = true;
     const $ = (s) => document.querySelector(s);
     if (!$("#editor-time")) return;
     $("#editor-time").textContent = CF.ui.time(
@@ -396,6 +407,24 @@ CF.Editor = class {
     if (!this.canvas?.isConnected) return;
     if (this.preview) this.advancePreview(audio);
     const { ctx, w, h } = CF.ui.fit(this.canvas);
+    // Static editor frames only need repainting after input or a size change.
+    const previous = this.rendered;
+    if (
+      !this.preview && !this.dirty && previous &&
+      previous.w === w && previous.h === h &&
+      previous.dpr === devicePixelRatio && previous.canvas === this.canvas &&
+      previous.offset === this.offset && previous.zoom === this.zoom &&
+      previous.cursor === this.cursor && previous.snap === this.snap &&
+      previous.notes === this.notes && previous.speed === this.chart.scrollSpeed &&
+      previous.drag === this.drag
+    )
+      return;
+    this.rendered = {
+      w, h, dpr: devicePixelRatio, canvas: this.canvas,
+      offset: this.offset, zoom: this.zoom, cursor: this.cursor, snap: this.snap,
+      notes: this.notes, speed: this.chart.scrollSpeed, drag: this.drag,
+    };
+    this.dirty = false;
     this.left = 55;
     this.top = 43;
     this.line = h - 42;
@@ -449,17 +478,26 @@ CF.Editor = class {
         );
       }
     }
-    const display =
-      this.drag?.type === "notes"
-        ? this.transform(this.drag.dt, this.drag.dl)
-        : this.preview
-          ? this.previewNotes.filter((n) => !n.judged)
-          : this.notes;
-    for (const n of display) {
-      const y = this.yAt(n.tick);
+    const display = this.preview ? this.previewNotes : this.notes;
+    const moving = this.drag?.type === "notes";
+    let first = 0;
+    if (!moving) {
+      let end = display.length;
+      while (first < end) {
+        const mid = (first + end) >>> 1;
+        if (this.yAt(display[mid].tick) > this.line + 9) first = mid + 1;
+        else end = mid;
+      }
+    }
+    for (let i = first; i < display.length; i++) {
+      const n = display[i];
+      if (!moving && this.yAt(n.tick) < this.top - 10) break;
+      if (this.preview && n.judged) continue;
+      const selected = this.selected.has(n.id);
+      const y = this.yAt(n.tick + (moving && selected ? this.drag.dt : 0));
       if (y < this.top - 10 || y > this.line + 9) continue;
-      const x = this.left + n.lane * this.laneWidth + 10,
-        selected = this.selected.has(n.id);
+      const lane = n.lane + (moving && selected ? this.drag.dl : 0);
+      const x = this.left + lane * this.laneWidth + 10;
       CF.highway.note(ctx, x, y, this.laneWidth - 20, selected);
     }
     const y = this.yAt(this.cursor);
@@ -546,8 +584,11 @@ CF.Editor = class {
     const time = this.clock.time(),
       now = performance.now();
     if (this.playing) {
-      for (const note of this.previewNotes) {
-        if (!note.judged && note.ms <= time) {
+      while (this.previewHead < this.previewNotes.length) {
+        const note = this.previewNotes[this.previewHead];
+        if (note.ms > time) break;
+        this.previewHead++;
+        if (!note.judged) {
           note.judged = true;
           this.previewFlashes[note.lane] = now;
           this.previewHits.push({ lane: note.lane, at: now });
@@ -556,14 +597,7 @@ CF.Editor = class {
       }
       this.offset = Math.max(0, CF.toTick(time, this.chart.bpm));
       this.cursor = this.offset;
-      if (
-        time >
-        this.previewNotes.reduce(
-          (end, n) => Math.max(end, n.ms),
-          CF.toMs(this.previewOrigin.cursor, this.chart.bpm),
-        ) +
-          600
-      ) {
+      if (time > this.previewEnd + 600) {
         this.clock.pause();
         this.playing = false;
       }

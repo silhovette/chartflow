@@ -83,7 +83,7 @@ window.CF = window.CF || {};
       osc.frequency.setValueAtTime(freq, at);
       gain.gain.setValueAtTime(0.0001, at);
       gain.gain.exponentialRampToValueAtTime(
-        Math.max(0.0002, this.volume * 0.2 * volume),
+        Math.max(0.0002, this.volume * 2.16 * volume),
         at + 0.003,
       );
       gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
@@ -204,7 +204,7 @@ window.CF = window.CF || {};
       4: ["d", "f", "j", "k"],
       5: ["d", "f", "j", "k", "l"],
       6: ["s", "d", "f", "j", "k", "l"],
-      7: ["s", "d", "f", "g", "j", "k", "l"],
+      7: ["s", "d", "f", "j", "k", "l", ";"],
       8: ["a", "s", "d", "f", "j", "k", "l", ";"],
     },
   });

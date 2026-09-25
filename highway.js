@@ -89,7 +89,7 @@ CF.highway = {
   ) {
     const { ctx, w, h } = CF.ui.fit(canvas),
       lw = w / chart.keyCount;
-    const { line } = this.geometry(h, chart.scrollSpeed);
+    const { line, pixelsPerMs } = this.geometry(h, chart.scrollSpeed);
     ctx.clearRect(0, 0, w, h);
     for (let lane = 0; lane < chart.keyCount; lane++) {
       const flash = Math.max(0, 1 - (now - (flashes[lane] ?? -1000)) / 160);
@@ -118,10 +118,19 @@ CF.highway = {
     ctx.beginPath();
     ctx.rect(0, 0, w, line + 20);
     ctx.clip();
-    for (const note of notes) {
+    // Notes are time-sorted; only visit the interval visible on the canvas.
+    let low = 0, high = notes.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (line - (notes[mid].ms - time) * pixelsPerMs > line + 20)
+        low = mid + 1;
+      else high = mid;
+    }
+    for (let i = low; i < notes.length; i++) {
+      const note = notes[i];
+      const y = line - (note.ms - time) * pixelsPerMs;
+      if (y < 0) break;
       if (note.judged) continue;
-      const y = this.noteY(note.ms, time, h, chart.scrollSpeed);
-      if (y < 0 || y > line + 20) continue;
       this.note(ctx, note.lane * lw + 11, y, lw - 22);
     }
     ctx.restore();

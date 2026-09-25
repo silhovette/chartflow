@@ -127,6 +127,19 @@ const assert = require("node:assert/strict");
     await page.locator(`[data-chart="${id}"] [data-action="edit"]`).click();
     assert.equal(await page.evaluate(() => CF.app.current.notes.length), 4);
     assert.equal(await page.evaluate(() => CF.app.current.bpm), 120);
+    // An idle canvas must still repaint when the grid or viewport changes.
+    const canvasImage = () => page.locator("#editor-canvas").evaluate(async (canvas) => {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return canvas.toDataURL();
+    });
+    await page.locator("#snap").selectOption("4");
+    const sparseGrid = await canvasImage();
+    await page.locator("#snap").selectOption("32");
+    assert.notEqual(await canvasImage(), sparseGrid);
+    const canvasWidth = await page.locator("#editor-canvas").evaluate((canvas) => canvas.width);
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await canvasImage();
+    assert.notEqual(await page.locator("#editor-canvas").evaluate((canvas) => canvas.width), canvasWidth);
     assert.deepEqual(errors, []);
     console.log(
       "PASS: blank creation, BPM/grid snapping, single-click add, Ctrl multi-select, group drag, right-click single delete, undo, marquee, paste and persistence.",

@@ -56,21 +56,21 @@ const assert = require("node:assert/strict");
     await page.keyboard.press("Enter");
     await page.waitForFunction(() => CF.app.state === "detail");
     await page.locator('[data-action="play"]').first().click();
-    assert.equal(await page.evaluate(() => CF.app.session.countBeat), 700);
+    assert.equal(await page.evaluate(() => CF.app.session.countBeat), 650);
     await page.keyboard.press("p");
     await page.keyboard.press("p");
-    assert.equal(await page.evaluate(() => CF.app.session.countBeat), 120);
+    assert.equal(await page.evaluate(() => CF.app.session.countBeat), 650);
     assert.ok(
       Math.abs(
         (await page.evaluate(
           () => CF.app.session.countUntil - CF.app.session.countStart,
-        )) - 360,
+        )) - 1950,
       ) < 0.001,
     );
     await page.waitForFunction(() => CF.app.session.phase === "running");
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: READY finish blocked; first input enables finish; 60/180/500 BPM four-beat recording resumes; frozen clock/input exclusion; initial play unchanged; three-beat play resume.",
+      "PASS: READY finish blocked; first input enables finish; 60/180/500 BPM four-beat recording resumes; frozen clock/input exclusion; initial and resumed play use 0.65-second three-beat count-ins.",
     );
   } finally {
     await browser.close();

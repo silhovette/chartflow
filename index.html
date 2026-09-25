@@ -17,13 +17,11 @@
     <script defer src="guide.js"></script>
     <script defer src="app.js"></script>
   </head>
-  <body>
+  <body class="startup-pending">
     <div class="ambient" aria-hidden="true"></div>
     <aside class="sidebar">
       <a class="brand" href="#" data-action="library"
-        ><span class="brand-mark">≋</span>ChartFlow<span class="version"
-          >0.1</span
-        ></a
+        ><span class="brand-mark">≋</span>ChartFlow</a
       >
       <div class="workspace-label">WORKSPACE</div>
       <button class="nav-item active" data-action="library">
@@ -58,15 +56,14 @@
         <button class="nav-item" data-action="settings">
           <span>⚙</span> Settings <span class="shortcut">⌘</span>
         </button>
-        <div class="sidebar-footer">MADE FOR THE FLOW <span>↗</span></div>
       </div>
     </aside>
     <div class="workspace">
       <header class="topbar">
         <div id="breadcrumb">Workspace <span>/</span> Your charts</div>
         <div class="topbar-right">
-          <i class="led"></i><span id="save-status">All changes saved</span
-          ><span class="divider"></span><span class="mono">CF / 001</span>
+          <span id="save-status" hidden role="status"></span>
+          <span class="mono">CF / 001</span>
         </div>
       </header>
       <main id="main"></main>

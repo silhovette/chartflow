@@ -44,17 +44,80 @@ CF.ui = {
     const max = Math.max(1, ...bins);
     return `<div class="density ${large ? "large" : ""}" aria-label="Note density overview">${bins.map((n) => `<i style="--h:${Math.max(5, (n / max) * 100)}%"></i>`).join("")}</div>`;
   },
-  async dialog({ title, body, confirm = "Confirm", danger = false, onOpen }) {
+  async dialog({
+    title,
+    body,
+    confirm = "Confirm",
+    danger = false,
+    animated = false,
+    dismissOnBackdrop = false,
+    className = "",
+    onOpen,
+  }) {
     const el = document.querySelector("#dialog");
+    el.className = className;
     el.innerHTML = `<form method="dialog"><div class="dialog-eyebrow">CHARTFLOW / WORKSPACE</div><h2>${title}</h2><div class="dialog-body">${body}</div><div class="dialog-actions"><button value="cancel" class="button" formnovalidate>Cancel</button><button value="confirm" class="button ${danger ? "danger" : "primary"}">${confirm}</button></div></form>`;
     el.returnValue = "cancel";
+    el.dataset.animated = animated;
+    el.dataset.state = "opening";
     el.showModal();
+    const duration = matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? 0
+      : 240;
+    const enter = animated
+      ? el.animate(
+          [
+            { opacity: 0, transform: "translateY(12px) scale(.98)" },
+            { opacity: 1, transform: "translateY(0) scale(1)" },
+          ],
+          { duration, easing: "cubic-bezier(.22,1,.36,1)" },
+        )
+      : null;
+    let closing = false;
+    const dismiss = async (value = "cancel") => {
+      if (closing || !el.open) return;
+      closing = true;
+      enter?.cancel();
+      if (animated) {
+        el.dataset.state = "closing";
+        await el.animate(
+          [
+            { opacity: 1, transform: "translateY(0) scale(1)" },
+            { opacity: 0, transform: "translateY(8px) scale(.98)" },
+          ],
+          { duration, easing: "cubic-bezier(.4,0,.2,1)" },
+        ).finished.catch(() => {});
+      }
+      el.close(value);
+    };
+    el.dismiss = dismiss;
+    el.oncancel = (event) => {
+      event.preventDefault();
+      dismiss();
+    };
+    el.onclick = (event) => {
+      if (!dismissOnBackdrop || event.target !== el) return;
+      const rect = el.getBoundingClientRect();
+      if (
+        event.clientX < rect.left || event.clientX > rect.right ||
+        event.clientY < rect.top || event.clientY > rect.bottom
+      )
+        dismiss();
+    };
     onOpen?.(el);
+    el.querySelector("form").addEventListener("submit", (event) => {
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      dismiss(event.submitter?.value || "confirm");
+    });
     return new Promise((resolve) => {
       el.onclose = () => {
         const values = Object.fromEntries(
           new FormData(el.querySelector("form")),
         );
+        el.onclick = null;
+        el.oncancel = null;
+        el.dismiss = null;
         resolve(el.returnValue === "confirm" ? values : null);
       };
     });

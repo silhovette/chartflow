@@ -80,8 +80,45 @@ const assert = require("node:assert/strict");
     await p.waitForFunction(() => !CF.guide.busy);
     assert.equal(await p.locator("#guide").isVisible(), false);
     await p.reload();
-    await p.waitForFunction(() => CF.app.state === "library");
+    await p.locator("#guide[open]").waitFor();
+    assert.equal(await p.evaluate(() => CF.guide.introOnly), true);
+    assert.equal(await p.locator("#save-status").isVisible(), false);
+    await p.evaluate(() => {
+      const close = CF.guide.close;
+      CF.guide.close = function () {
+        window.introHoldMs = performance.now() - this.intro.settledAt;
+        this.close = close;
+        return close.call(this);
+      };
+    });
+    await p.waitForFunction(() => CF.guide.intro?.done);
+    const settledIntro = await p.locator(".guide-intro-scene canvas").evaluate((canvas) => canvas.toDataURL());
+    const settledTitle = await p.locator(".guide-intro-title").evaluate((title) => title.style.transform);
+    assert.equal(await p.locator(".guide-footer").isVisible(), false);
+    await p.keyboard.press("ArrowRight");
+    assert.equal(await p.evaluate(() => CF.guide.step), -1);
+    await p.waitForTimeout(650);
+    assert.equal(await p.evaluate(() => CF.guide.closing), false);
+    assert.equal(await p.locator(".guide-intro-scene canvas").evaluate((canvas) => canvas.toDataURL()), settledIntro);
+    assert.equal(await p.locator(".guide-intro-title").evaluate((title) => title.style.transform), settledTitle);
+    await p.waitForFunction(() => CF.guide.closing);
+    await p.waitForTimeout(350);
+    const fade = await p.locator("#guide").evaluate((guide) => ({
+      scene: +getComputedStyle(guide).opacity,
+      backdrop: +getComputedStyle(guide, "::backdrop").opacity,
+      title: +guide.querySelector(".guide-intro-title").style.opacity,
+      cover: !!document.querySelector(".guide-exit"),
+    }));
+    assert.ok(fade.scene > 0 && fade.scene < 1, JSON.stringify(fade));
+    assert.ok(fade.backdrop > 0 && fade.backdrop < 1, JSON.stringify(fade));
+    assert.ok(Math.abs(fade.scene - fade.backdrop) < 0.15, JSON.stringify(fade));
+    assert.ok(fade.title > 0.99 && !fade.cover, JSON.stringify(fade));
+    await p.waitForFunction(() => !CF.guide.dialog.open && !CF.guide.busy);
+    const holdMs = await p.evaluate(() => window.introHoldMs);
+    assert.ok(holdMs >= 940, `Opening held for ${holdMs} ms`);
+    console.log(`Opening held still for ${Math.round(holdMs)} ms before fading out.`);
     assert.equal(await p.locator("#guide").isVisible(), false);
+    assert.equal(await p.evaluate(() => CF.app.state), "library");
     await p
       .getByRole("button", { name: "Open beginner guide", exact: true })
       .click();
@@ -109,8 +146,14 @@ const assert = require("node:assert/strict");
     await p.waitForFunction(() => !CF.guide.busy);
     assert.equal(await p.evaluate(() => CF.app.session.phase), "paused");
     assert.deepEqual(errors, []);
+    await p.emulateMedia({ reducedMotion: "reduce" });
+    await p.reload();
+    await p.locator("#guide[open]").waitFor();
+    await p.waitForFunction(() => !CF.guide.dialog.open && !CF.guide.busy);
+    assert.equal(await p.evaluate(() => CF.app.state), "library");
+    assert.deepEqual(errors, []);
     console.log(
-      "PASS: automatic guide, cinematic intro and eight pages, controls, back/finish, revisit, Escape, mobile layout and paused gameplay/input isolation.",
+      "PASS: first-visit guide, repeat-visit intro with hold and automatic exit, reduced motion, eight pages, controls, revisit, Escape, mobile layout and paused gameplay/input isolation.",
     );
   } finally {
     await b.close();

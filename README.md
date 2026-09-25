@@ -34,7 +34,7 @@ Data is stored in IndexedDB for the current browser and origin. Opening the file
 | 4K | `D F J K` |
 | 5K | `D F J K L` |
 | 6K | `S D F J K L` |
-| 7K | `S D F G J K L` |
+| 7K | `S D F J K L ;` |
 | 8K | `A S D F J K L ;` |
 
 Change bindings in **Settings**. P, Enter, Escape, and combinations with Ctrl, Cmd, or Alt are reserved. Physical keys are tracked independently for simultaneous eight-key input. **Key Check** helps identify combinations that your keyboard hardware does not report.
@@ -132,6 +132,6 @@ Version 0.1 supports tap notes and a single BPM per chart. Audio consists of syn
 
 On first visit, a cinematic opening followed by an eight-page, full-viewport guide introduces creating, recording, finishing, playing, editing, and essential controls. Completing or skipping it is remembered for this browser and origin. Reopen it from the sidebar’s **Beginner guide** (`?` on small screens). Opening the guide pauses live play/recording and stops editor preview; keyboard input stays inside the guide until it closes.
 
-The opening lasts about six seconds; navigation fades in after the welcome reveal. Use the left and right arrow keys to move between guide pages.
+The opening lasts about 4.4 seconds. The initial ribbons move 50% faster than their original pace, and the later morph moves 20% faster. The logo and welcome text start moving together, settling over 1.15 and 1.3 seconds respectively, with more space between them. On first visit, navigation fades in after both settle. On subsequent visits, the completed opening stays still for 0.95 seconds, then fades into the workspace automatically. Reopening the guide manually includes the opening and all eight pages. Use the left and right arrow keys to move between guide pages; page transitions last 750 ms.
 
 Guide interaction and responsive layout checks: `node tests/guide.cjs`.

@@ -91,8 +91,7 @@ small {
 .eyebrow,
 .section-kicker,
 .workspace-label,
-.app-footer,
-.sidebar-footer {
+.app-footer {
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 }
 .ambient {
@@ -145,20 +144,11 @@ small {
       0 0 23px #6fe7d224;
   }
 }
-.version {
-  font-size: 9px;
-  letter-spacing: 0.3px;
-  border: 1px solid #ffffff18;
-  color: var(--muted);
-  padding: 3px 4px;
-  border-radius: 4px;
-  margin-left: 1px;
-}
 .workspace-label {
   font-size: 9px;
   letter-spacing: 1.8px;
   color: #65717d;
-  margin: 59px 12px 17px;
+  margin: 43px 12px 17px;
 }
 .nav-item {
   display: flex;
@@ -202,12 +192,14 @@ small {
 }
 .sidebar-bottom {
   margin-top: auto;
+  padding-bottom: 20px;
 }
 .local-status {
   font-size: 11px;
   color: #a4aeb8;
   padding: 17px 12px 24px;
   border-bottom: 1px solid var(--border);
+  margin-top: 16px;
   margin-bottom: 14px;
 }
 .local-status small {
@@ -230,16 +222,6 @@ small {
   margin-left: auto;
   font-size: 12px;
   color: var(--muted);
-}
-.sidebar-footer {
-  border-top: 1px solid var(--border);
-  padding: 20px 10px 0;
-  margin-top: 11px;
-  font-size: 8px;
-  letter-spacing: 1px;
-  color: #46505d;
-  display: flex;
-  justify-content: space-between;
 }
 .workspace {
   margin-left: 232px;
@@ -1191,6 +1173,37 @@ kbd {
   padding: 44px;
   text-align: center;
 }
+body[data-screen="results"] {
+  min-width: 0;
+  overflow: hidden;
+}
+body[data-screen="results"] .workspace {
+  height: 100dvh;
+  min-height: 0;
+}
+body[data-screen="results"] main {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+body[data-screen="results"] .result-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(750px, calc(100% - 24px));
+  margin: 0;
+  transform: translate(-50%, -50%) scale(var(--result-scale, 1));
+  transform-origin: center;
+}
+body[data-screen="results"] .result-panel h2 {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  body[data-screen="results"] .workspace {
+    height: calc(100dvh - 65px);
+  }
+}
 .result-grade {
   animation: grade-breathe 3.6s ease-in-out infinite;
   text-shadow:
@@ -1244,6 +1257,9 @@ kbd {
   left: 50%;
   box-shadow: 0 0 12px #6fe7d299;
 }
+.setup-layout .flow-line::after {
+  display: none;
+}
 .processing {
   max-width: 600px;
   margin: 100px auto;
@@ -1265,6 +1281,26 @@ dialog {
 dialog::backdrop {
   background: #03070dbb;
   backdrop-filter: blur(7px);
+}
+#dialog[data-animated="true"]::backdrop {
+  animation: modal-backdrop-in 240ms ease-out both;
+}
+#dialog[data-animated="true"][data-state="closing"]::backdrop {
+  animation: modal-backdrop-out 240ms ease-in both;
+}
+@keyframes modal-backdrop-in {
+  from { background: #03070d00; backdrop-filter: blur(0); }
+  to { background: #03070dbb; backdrop-filter: blur(7px); }
+}
+@keyframes modal-backdrop-out {
+  from { background: #03070dbb; backdrop-filter: blur(7px); }
+  to { background: #03070d00; backdrop-filter: blur(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #dialog[data-animated="true"]::backdrop,
+  #dialog[data-animated="true"][data-state="closing"]::backdrop {
+    animation-duration: 0ms;
+  }
 }
 .dialog-eyebrow {
   font:
@@ -1373,6 +1409,60 @@ dialog::backdrop {
   width: auto;
   accent-color: var(--cyan);
 }
+#dialog.settings-dialog {
+  width: min(470px, calc(100vw - 16px));
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 24px);
+  padding: 20px;
+}
+.settings-dialog .dialog-eyebrow {
+  margin-bottom: 8px;
+}
+.settings-dialog .dialog-body {
+  margin-top: 12px;
+  line-height: 1.5;
+}
+.settings-dialog .dialog-body .field {
+  margin-bottom: 8px;
+}
+.settings-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.settings-dialog .settings-volume-row input[type="range"] {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--cyan);
+  cursor: pointer;
+}
+.settings-volume-test {
+  flex: none;
+}
+.settings-dialog .settings-mode {
+  margin: 3px 0;
+}
+.settings-dialog .settings-bindings input {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+.settings-dialog .dialog-actions {
+  margin-top: 16px;
+}
+@media (max-width: 760px) {
+  #dialog.settings-dialog {
+    padding: 16px;
+  }
+  .settings-dialog .settings-mode {
+    gap: 9px;
+  }
+}
 #toast {
   position: fixed;
   bottom: 30px;
@@ -1394,6 +1484,9 @@ dialog::backdrop {
 #toast.show {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+body[data-screen="results"] #toast {
+  bottom: 0;
 }
 .screen-enter {
   animation: enter 240ms ease-out;
@@ -1475,9 +1568,6 @@ dialog::backdrop {
     font-size: 21px;
     gap: 6px;
   }
-  .version {
-    display: none;
-  }
   .list-labels,
   .chart-row {
     grid-template-columns: minmax(180px, 1fr) 70px 133px;
@@ -1552,13 +1642,13 @@ dialog::backdrop {
   }
   .sidebar .workspace-label,
   .sidebar-bottom .local-status,
-  .sidebar-footer,
   .sidebar > .nav-item,
   .sidebar-bottom .shortcut {
     display: none;
   }
   .sidebar-bottom {
     margin: 0;
+    padding-bottom: 0;
   }
   .sidebar-bottom .nav-item {
     margin: 0;
@@ -2195,6 +2285,14 @@ body[data-screen="editor"] .editor-workspace {
 .guide-link:hover {
   color: var(--cyan);
 }
+body.startup-pending {
+  background: #000;
+}
+body.startup-pending > .sidebar,
+body.startup-pending > .workspace,
+body.startup-pending > .ambient {
+  visibility: hidden;
+}
 body.guide-open {
   overflow: hidden;
 }
@@ -2545,6 +2643,18 @@ body.guide-open {
 /* Cinematic opening and viewport-fitted, non-scrolling guide pages. */
 #guide::backdrop {
   background: #000;
+}
+#guide[data-intro="true"][data-state="closing"]::backdrop {
+  animation: guide-intro-backdrop-out 900ms cubic-bezier(.22, 1, .36, 1) both;
+}
+@keyframes guide-intro-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #guide[data-intro="true"][data-state="closing"]::backdrop {
+    animation-duration: 0ms;
+  }
 }
 #guide[data-intro="true"] {
   background: #000;

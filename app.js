@@ -22,7 +22,9 @@
   const button = (label, action, cls = "", extra = "") =>
     `<button class="button ${cls}" data-action="${action}" ${extra}>${label}</button>`;
   function saveStatus(text) {
-    $("#save-status").textContent = text;
+    const status = $("#save-status");
+    status.hidden = text === "All changes saved";
+    status.textContent = status.hidden ? "" : text;
   }
   function markChanged(chart) {
     chart.ownerId ||= CF.storage.profileId;
@@ -83,7 +85,21 @@
       );
     $("#nav-count").textContent = app.charts.length;
     window.scrollTo(0, 0);
+    if (state === "results") fitResult();
   }
+  function fitResult() {
+    const main = $("#main"), panel = main.querySelector(".result-panel");
+    if (!panel) return;
+    const scale = Math.min(
+      1,
+      (main.clientWidth - 24) / panel.offsetWidth,
+      (main.clientHeight - 24) / panel.scrollHeight,
+    );
+    panel.style.setProperty("--result-scale", Math.max(0, scale));
+  }
+  window.addEventListener("resize", () => {
+    if (app.state === "results") fitResult();
+  });
   function header(
     title,
     description,
@@ -276,7 +292,8 @@
     s.phase = "countin";
     s.countStart =
       performance.now() + (app.state === "play" && !resuming ? 1000 : 0);
-    s.countBeat = resuming ? 60000 / app.current.bpm : 700;
+    s.countBeat =
+      app.state === "play" ? 650 : resuming ? 60000 / app.current.bpm : 700;
     s.countBeats = beats;
     s.countUntil = s.countStart + s.countBeat * beats;
     s.lastCount = -1;
@@ -311,6 +328,7 @@
       maxCombo: 0,
       weight: 0,
       judged: 0,
+      missHead: 0,
       feedback: [],
       hitEffects: [],
       startTick: fromTick,
@@ -498,7 +516,7 @@
   }
   async function back() {
     if ($("#dialog").open) {
-      $("#dialog").close("cancel");
+      $("#dialog").dismiss("cancel");
       return;
     }
     if (app.state === "record") {
@@ -581,6 +599,7 @@
     const c = app.current;
     const yes = await CF.ui.dialog({
       title: "Delete this chart?",
+      animated: true,
       body: `“${E(c.name)}” will be removed from this device. Export a copy first if you want to keep it.`,
       confirm: "Delete chart",
       danger: true,
@@ -660,10 +679,26 @@
       pause();
     app.editor?.stop(app.audio);
     const answer = await CF.ui.dialog({
-      title: "Make yourself at home.",
-      body: `<label class="check-field"><input name="sound" type="checkbox" ${app.settings.sound ? "checked" : ""}> Metronome & feedback sound</label><label class="field">Volume<input name="volume" type="range" min="0" max="1" step="0.05" value="${app.settings.volume}"></label><div class="section-kicker" style="margin:25px 0 15px">LANE BINDINGS</div>${[4, 5, 6, 7, 8].map((k) => `<div class="settings-mode"><span>${k}K</span><div class="settings-bindings">${app.settings.bindings[k].map((key, i) => `<input name="key-${k}-${i}" value="${E(key)}" maxlength="1" required aria-label="${k}K lane ${i + 1}" pattern="[a-oA-Oq-zQ-Z0-9;]">`).join("")}</div></div>`).join("")}<p style="margin-top:18px;font-size:10px">Use unique letters, numbers, or semicolon in each mode. P, Enter and Escape are reserved. Ctrl / Cmd shortcuts always take priority.</p>`,
+      title: "Settings",
+      animated: true,
+      dismissOnBackdrop: true,
+      className: "settings-dialog",
+      body: `<label class="check-field"><input name="sound" type="checkbox" ${app.settings.sound ? "checked" : ""}> Metronome & feedback sound</label><div class="field settings-volume"><span>Volume</span><div class="settings-volume-row"><input name="volume" type="range" min="0" max="1" step="0.05" value="${app.settings.volume}" aria-label="Volume"><button type="button" class="button small settings-volume-test">Test</button></div></div><div class="section-kicker" style="margin:25px 0 15px">LANE BINDINGS</div>${[4, 5, 6, 7, 8].map((k) => `<div class="settings-mode"><span>${k}K</span><div class="settings-bindings">${app.settings.bindings[k].map((key, i) => `<input name="key-${k}-${i}" value="${E(key)}" maxlength="1" required aria-label="${k}K lane ${i + 1}" pattern="[a-oA-Oq-zQ-Z0-9;]">`).join("")}</div></div>`).join("")}<p style="margin-top:18px;font-size:10px">Use unique letters, numbers, or semicolon in each mode. P, Enter and Escape are reserved. Ctrl / Cmd shortcuts always take priority.</p>`,
       confirm: "Save settings",
       onOpen: (el) => {
+        el.querySelector(".settings-volume-test").onclick = () => {
+          const volume = app.audio.volume;
+          const enabled = app.audio.enabled;
+          app.audio.volume = +el.querySelector('[name="volume"]').value;
+          app.audio.enabled = true;
+          try {
+            app.audio.unlock();
+            app.audio.tone(460, undefined, 0.045, 0.6);
+          } finally {
+            app.audio.volume = volume;
+            app.audio.enabled = enabled;
+          }
+        };
         el.querySelectorAll(".settings-bindings input").forEach(
           (input) =>
             (input.onkeydown = (e) => {
@@ -945,8 +980,12 @@
     }
     const t = s.clock.time(now);
     if (app.state === "play" && s.phase === "running") {
-      for (const n of s.notes)
-        if (!n.judged && t - n.ms > 140) judge(n, "Miss", 0);
+      while (s.missHead < s.notes.length) {
+        const n = s.notes[s.missHead];
+        if (t - n.ms <= 140) break;
+        if (!n.judged) judge(n, "Miss", 0);
+        s.missHead++;
+      }
     }
     if (s.hitEffects)
       s.hitEffects = s.hitEffects.filter((hit) => now - hit.at < 520);
@@ -976,11 +1015,11 @@
           ctx.globalAlpha = 1;
         }
       }
-      $("#stat-main").textContent = s.combo;
-      $("#stat-secondary").textContent =
-        `${(s.judged ? (s.weight / s.judged) * 100 : 100).toFixed(2)}%`;
       if (s.renderedJudged !== s.judged) {
         s.renderedJudged = s.judged;
+        $("#stat-main").textContent = s.combo;
+        $("#stat-secondary").textContent =
+          `${(s.judged ? (s.weight / s.judged) * 100 : 100).toFixed(2)}%`;
         $("#judgements").innerHTML =
           "<div><span>Score</span><b>" +
           Math.round(s.weight * 1000).toLocaleString() +
@@ -991,20 +1030,28 @@
       }
       if (
         s.phase === "running" &&
-        s.notes.every((n) => n.judged) &&
+        s.judged === s.notes.length &&
         t > (s.notes.at(-1)?.ms || CF.toMs(s.startTick, c.bpm)) + 500
       ) {
         results();
         return;
       }
-    } else $("#stat-main").textContent = s.raw.length;
-    $("#live-time").textContent = T(t, true);
-    const beat = Math.floor(t / (60000 / c.bpm)) % 4;
-    document
-      .querySelectorAll("#beats span")
-      .forEach((el, i) =>
-        el.classList.toggle("on", s.phase === "running" && i === beat),
+    } else if (s.renderedRaw !== s.raw.length) {
+      s.renderedRaw = s.raw.length;
+      $("#stat-main").textContent = s.raw.length;
+    }
+    const timeText = T(t, true);
+    if (s.renderedTime !== timeText) {
+      s.renderedTime = timeText;
+      $("#live-time").textContent = timeText;
+    }
+    const beat = s.phase === "running" ? Math.floor(t / (60000 / c.bpm)) % 4 : -1;
+    if (s.renderedBeat !== beat) {
+      s.renderedBeat = beat;
+      document.querySelectorAll("#beats span").forEach((el, i) =>
+        el.classList.toggle("on", i === beat),
       );
+    }
   }
   function frame(now) {
     try {
@@ -1070,6 +1117,10 @@
         ...structuredClone(CF.bindings),
         ...settings.bindings,
       };
+      if (app.settings.bindings[7].join("") === "sdfgjkl") {
+        app.settings.bindings[7] = [...CF.bindings[7]];
+        await CF.storage.saveSettings(app.settings);
+      }
     }
     app.audio.enabled = app.settings.sound;
     app.audio.volume = app.settings.volume;
@@ -1142,6 +1193,7 @@
       requestAnimationFrame(frame);
       await CF.guide.firstVisit();
     } catch (error) {
+      document.body.classList.remove("startup-pending");
       setScreen(
         "error",
         `${header("Your workspace couldn’t open.", "IndexedDB is unavailable in this browser session.")}<div class="glass form-panel"><p>Allow browser storage and reload. You can also serve this folder through a local static HTTP server.</p><p style="margin-top:15px;color:var(--secondary)">${E(error.message)}</p></div>`,

@@ -61,11 +61,13 @@ CF.guide = {
     const seen = await CF.storage.request("settings", "readonly", (s) =>
       s.get("guideSeen"),
     );
-    if (!seen) this.open();
+    this.open({ introOnly: !!seen });
   },
-  open() {
+  open({ introOnly = false } = {}) {
     this.dialog = document.querySelector("#guide");
     if (this.dialog.open) return;
+    this.introOnly = introOnly;
+    clearTimeout(this.exitTimer);
     this.step = -1;
     this.busy = false;
     this.closing = false;
@@ -86,7 +88,12 @@ CF.guide = {
         return;
       e.preventDefault();
       e.stopPropagation();
-      if (this.closing || (this.step === -1 && !this.intro?.done)) return;
+      if (
+        this.introOnly ||
+        this.closing ||
+        (this.step === -1 && !this.intro?.done)
+      )
+        return;
       if (e.key === "ArrowLeft" && this.step > -1) this.go(-1);
       if (e.key === "ArrowRight") {
         if (this.step === this.pages.length - 1) this.close();
@@ -98,6 +105,7 @@ CF.guide = {
     this.observer = new ResizeObserver(() => this.fit());
     this.observer.observe(this.dialog);
     this.render();
+    document.body.classList.remove("startup-pending");
     this.dialog.querySelector("#guide-title").focus({ preventScroll: true });
   },
   motion(element, frames, duration) {
@@ -168,15 +176,20 @@ CF.guide = {
         this.dialog.querySelector(".guide-intro-scene"),
         () => {
           this.introSeen = true;
+          if (this.introOnly) {
+            this.exitTimer = setTimeout(() => this.close(), 950);
+            return;
+          }
           this.dialog.classList.add("intro-ready");
           this.dialog.querySelector(".guide-top").inert = false;
           this.dialog.querySelector(".guide-footer").inert = false;
         },
         this.introSeen,
+        this.introOnly,
       );
   },
   async go(delta) {
-    if (this.closing) return;
+    if (this.introOnly || this.closing) return;
     const next = Math.max(
       -1,
       Math.min(this.pages.length - 1, this.step + delta),
@@ -197,8 +210,8 @@ CF.guide = {
         {
           duration: matchMedia("(prefers-reduced-motion: reduce)").matches
             ? 0
-            : 720,
-          easing: "cubic-bezier(.16,1,.3,1)",
+            : 750,
+          easing: "cubic-bezier(.4,0,.2,1)",
         },
       );
       await this.transition.finished.catch(() => {});
@@ -208,19 +221,29 @@ CF.guide = {
   async close() {
     if (this.closing || !this.dialog.open) return;
     this.closing = true;
+    clearTimeout(this.exitTimer);
     this.navigation++;
     this.transition?.cancel();
     this.busy = true;
     this.intro?.stop();
     this.observer?.disconnect();
-    const cover = document.createElement("div");
-    cover.className = "guide-exit";
-    document.body.append(cover);
-    await this.motion(this.dialog, [{ opacity: 1 }, { opacity: 0 }], 380);
+    let cover;
+    if (this.introOnly) {
+      this.dialog.dataset.state = "closing";
+      await this.motion(this.dialog, [{ opacity: 1 }, { opacity: 0 }], 900);
+    } else {
+      cover = document.createElement("div");
+      cover.className = "guide-exit";
+      document.body.append(cover);
+      await this.motion(this.dialog, [{ opacity: 1 }, { opacity: 0 }], 380);
+    }
     this.dialog.close();
     document.body.classList.remove("guide-open");
-    await this.motion(cover, [{ opacity: 1 }, { opacity: 0 }], 900);
-    cover.remove();
+    delete this.dialog.dataset.state;
+    if (cover) {
+      await this.motion(cover, [{ opacity: 1 }, { opacity: 0 }], 900);
+      cover.remove();
+    }
     this.busy = false;
     this.closing = false;
     CF.storage

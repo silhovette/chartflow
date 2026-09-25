@@ -1,0 +1,66 @@
+{
+  "format": "chartflow",
+  "version": 1,
+  "chart": {
+    "id": "0d1bd9fb-490a-4c60-b601-f2f8f92de7d1",
+    "name": "Verified pattern",
+    "keyCount": 4,
+    "bpm": 180,
+    "scrollSpeed": 15,
+    "ppqn": 384,
+    "notes": [
+      {
+        "id": "88a43377-e392-4200-8451-acc9e431a8ac",
+        "lane": 0,
+        "tick": 384
+      },
+      {
+        "id": "c1e42e18-d118-4587-917e-6671fe2e7321",
+        "lane": 2,
+        "tick": 384
+      },
+      {
+        "id": "d5173990-ae7e-48a4-aa80-73aba5ee7b23",
+        "lane": 1,
+        "tick": 576
+      },
+      {
+        "id": "cb208ff1-4469-4b86-b169-712c9aa296d4",
+        "lane": 3,
+        "tick": 576
+      },
+      {
+        "id": "d5456b1a-3812-40b3-90bd-a17313b531e8",
+        "lane": 0,
+        "tick": 768
+      },
+      {
+        "id": "c7172dc7-bb6d-44d6-9910-86978e3cbbae",
+        "lane": 0,
+        "tick": 1152
+      }
+    ],
+    "rawRecording": [
+      {
+        "lane": 0,
+        "timestampMs": 0
+      },
+      {
+        "lane": 2,
+        "timestampMs": 4.100000001490116
+      },
+      {
+        "lane": 1,
+        "timestampMs": 176.20000000298023
+      },
+      {
+        "lane": 3,
+        "timestampMs": 187.76666666815618
+      }
+    ],
+    "createdAt": 1790359747947,
+    "updatedAt": 1790359759363,
+    "collisions": 0,
+    "ownerId": "local-player"
+  }
+}

@@ -76,7 +76,7 @@ const path = require("node:path");
       end: CF.app.session.countUntil,
       now: performance.now(),
     }));
-    assert.equal(schedule.end - schedule.start, 2100);
+    assert.equal(schedule.end - schedule.start, 1950);
     assert.ok(schedule.start - schedule.now > 800);
     await page.locator("#scroll-speed").fill("12");
     await page.locator("#scroll-speed").press("Tab");
@@ -87,11 +87,11 @@ const path = require("node:path");
     );
     assert.equal(await page.locator("#stage-overlay h2").textContent(), "3");
     await page.waitForFunction(
-      () => performance.now() >= CF.app.session.countStart + 780,
+      () => performance.now() >= CF.app.session.countStart + 730,
     );
     assert.equal(await page.locator("#stage-overlay h2").textContent(), "2");
     await page.waitForFunction(
-      () => performance.now() >= CF.app.session.countStart + 1480,
+      () => performance.now() >= CF.app.session.countStart + 1380,
     );
     assert.equal(await page.locator("#stage-overlay h2").textContent(), "1");
     const noteRows = () =>
@@ -226,10 +226,10 @@ const path = require("node:path");
     await page.locator('[data-action="settings"]').click();
     assert.equal(await page.locator('[name^="key-8-"]').count(), 8);
     await page.locator('dialog [value="confirm"]').click();
-    assert.equal(await page.locator("dialog").evaluate((d) => d.open), false);
+    assert.equal(await page.locator("#dialog").evaluate((d) => d.open), false);
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: compact header, title-first modes, 8-key recording/judgement, legacy settings, exact delayed 0.7-second countdown steps, empty countdown lanes, top entry, falling preview, pause/resume, viewport restore, speed persistence.",
+      "PASS: compact header, title-first modes, 8-key recording/judgement, legacy settings, exact delayed 0.65-second countdown steps, empty countdown lanes, top entry, falling preview, pause/resume, viewport restore, speed persistence.",
     );
   } finally {
     await browser.close();
