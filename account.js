@@ -260,6 +260,7 @@ CF.account = {
     });
     const settings = {
       initialized: true,
+      starterSpeed15Applied: data.settings?.starterSpeed15Applied === true,
       sound: data.settings?.sound !== false,
       volume: 0.35,
       bindings: structuredClone(CF.bindings),

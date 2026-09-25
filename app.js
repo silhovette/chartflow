@@ -257,7 +257,7 @@
   function stageHTML(mode) {
     const c = app.current,
       rec = mode === "record";
-    return `<div class="page-heading editor-heading"><div><div class="eyebrow">${rec ? "CAPTURE / LIVE PERFORMANCE" : app.testing ? "EDITOR / TEST SESSION" : "PLAY / FIND YOUR FLOW"}</div><h1>${E(c.name)}</h1></div><div class="actions">${rec ? "" : speedControl()}${button("← " + (app.testing ? "Back to editor" : "Back"), "back")}${button("Ⅱ Pause", "pause", "", 'id="pause-button"')}${rec ? button("Finish ↵", "finish", "primary") : ""}</div></div><div class="stage-layout"><aside class="stage-side"><div class="section-kicker">${rec ? "THE EMPTY INSTRUMENT" : "YOUR PERFORMANCE"}</div><h2>${c.keyCount} lanes.<br>One flow.</h2><p>${rec ? "Let your hands find the pattern.<br>Nothing falls. Everything listens." : "Follow the notes to the line.<br>Every note is a new beginning."}</p><div class="stage-status" id="stage-status"><i class="led"></i>${rec ? "READY" : "COUNT IN"}</div><div class="live-time" id="live-time">00:00.000</div><div class="stat"><strong>${c.bpm}<small>BPM</small></strong></div><div class="beat-display" id="beats">${[1, 2, 3, 4].map((n) => `<span>${n}</span>`).join("")}</div></aside><div class="stage"><canvas id="stage-canvas" aria-label="${rec ? "Empty recording lanes" : "Falling-note playfield"}"></canvas><div class="stage-overlay" id="stage-overlay"><h2>${rec ? "READY" : ""}</h2><p>${rec ? "Press any lane key to begin" : "Find your position"}</p></div></div><aside class="stage-side"><div class="section-kicker">${rec ? "LIVE SESSION" : "SESSION STATS"}</div><div class="stat"><strong id="stat-main">0</strong><small>${rec ? "Inputs captured" : "Combo"}</small></div><div class="stat"><strong id="stat-secondary">${rec ? "1/32" : "100.00%"}</strong><small>${rec ? "Finish quantization" : "Accuracy"}</small></div>${rec ? '<div class="hint-panel"><p>Raw timing is always preserved.<br><br>Pause whenever you need.<br>A four-step count-in brings you back.</p></div>' : '<div class="judgements" id="judgements"></div>'}</aside></div><div class="stage-hints"><span><kbd>P</kbd> Pause / resume</span><span>${rec ? "<kbd>Enter</kbd> Finish recording" : "Hit notes at the line"}</span><span><kbd>Esc</kbd> Back</span></div>`;
+    return `<div class="page-heading editor-heading"><div><div class="eyebrow">${rec ? "CAPTURE / LIVE PERFORMANCE" : app.testing ? "EDITOR / TEST SESSION" : "PLAY / FIND YOUR FLOW"}</div><h1>${E(c.name)}</h1></div><div class="actions">${rec ? "" : speedControl()}${button("← " + (app.testing ? "Back to editor" : "Back"), "back")}${button("Ⅱ Pause", "pause", "", 'id="pause-button"')}${rec ? button("Finish ↵", "finish", "primary", 'disabled title="Start recording with a lane key first."') : ""}</div></div><div class="stage-layout"><aside class="stage-side"><div class="section-kicker">${rec ? "THE EMPTY INSTRUMENT" : "YOUR PERFORMANCE"}</div><h2>${c.keyCount} lanes.<br>One flow.</h2><p>${rec ? "Let your hands find the pattern.<br>Nothing falls. Everything listens." : "Follow the notes to the line.<br>Every note is a new beginning."}</p><div class="stage-status" id="stage-status"><i class="led"></i>${rec ? "READY" : "COUNT IN"}</div><div class="live-time" id="live-time">00:00.000</div><div class="stat"><strong>${c.bpm}<small>BPM</small></strong></div><div class="beat-display" id="beats">${[1, 2, 3, 4].map((n) => `<span>${n}</span>`).join("")}</div></aside><div class="stage"><canvas id="stage-canvas" aria-label="${rec ? "Empty recording lanes" : "Falling-note playfield"}"></canvas><div class="stage-overlay" id="stage-overlay"><h2>${rec ? "READY" : ""}</h2><p>${rec ? "Press any lane key to begin" : "Find your position"}</p></div></div><aside class="stage-side"><div class="section-kicker">${rec ? "LIVE SESSION" : "SESSION STATS"}</div><div class="stat"><strong id="stat-main">0</strong><small>${rec ? "Inputs captured" : "Combo"}</small></div><div class="stat"><strong id="stat-secondary">${rec ? "1/32" : "100.00%"}</strong><small>${rec ? "Finish quantization" : "Accuracy"}</small></div>${rec ? '<div class="hint-panel"><p>Raw timing is always preserved.<br><br>Pause whenever you need.<br>A four-step count-in brings you back.</p></div>' : '<div class="judgements" id="judgements"></div>'}</aside></div><div class="stage-hints"><span><kbd>P</kbd> Pause / resume</span><span>${rec ? "<kbd>Enter</kbd> Finish recording" : "Hit notes at the line"}</span><span><kbd>Esc</kbd> Back</span></div>`;
   }
   function record() {
     app.audio.unlock();
@@ -271,11 +271,12 @@
       countUntil: 0,
     };
   }
-  function countIn(beats) {
+  function countIn(beats, resuming = false) {
     const s = app.session;
     s.phase = "countin";
-    s.countStart = performance.now() + (app.state === "play" ? 1000 : 0);
-    s.countBeat = 700;
+    s.countStart =
+      performance.now() + (app.state === "play" && !resuming ? 1000 : 0);
+    s.countBeat = resuming ? 60000 / app.current.bpm : 700;
     s.countBeats = beats;
     s.countUntil = s.countStart + s.countBeat * beats;
     s.lastCount = -1;
@@ -330,7 +331,8 @@
       s.clock.pause();
       s.phase = "paused";
       app.audio.stop();
-    } else if (s.phase === "paused") countIn(app.state === "record" ? 4 : 3);
+    } else if (s.phase === "paused")
+      countIn(app.state === "record" ? 4 : 3, true);
     app.pressed.clear();
     updateStage();
   }
@@ -373,6 +375,10 @@
   async function finish() {
     if (app.state !== "record") return;
     const s = app.session;
+    if (!s?.raw.length) {
+      CF.ui.toast("Start recording with a lane key first.");
+      return;
+    }
     s.clock.pause();
     app.audio.stop();
     app.current.rawRecording = s.raw.map((e) => ({ ...e }));
@@ -447,10 +453,17 @@
               : accuracy >= 65
                 ? "C"
                 : "D";
+    const gradeMessage = {
+      S: "You and the rhythm, in perfect sync.",
+      A: "A brilliant run. Your rhythm shines.",
+      B: "A steady pulse. Your flow is taking shape.",
+      C: "The rhythm is within reach. Keep going.",
+      D: "Every rhythm starts with a first step.",
+    };
     CF.progress.complete(app.current, s, accuracy, grade, app.testing);
     setScreen(
       "results",
-      `<section class="glass result-panel"><div class="eyebrow">SESSION COMPLETE</div><h2>${E(app.current.name)}</h2><div class="result-grade">${s.notes.length ? grade : "—"}</div><p>${s.notes.length ? "A rhythm worth returning to." : "An empty canvas. Add a few notes to begin."}</p><div class="stat-grid"><div class="stat"><strong>${accuracy.toFixed(2)}%</strong><small>Accuracy</small></div><div class="stat"><strong>${s.maxCombo}</strong><small>Max combo</small></div><div class="stat"><strong>${Math.round(s.weight * 1000).toLocaleString()}</strong><small>Score</small></div><div class="stat"><strong>${s.counts.Miss}</strong><small>Misses</small></div></div><div class="judgements">${Object.entries(
+      `<section class="glass result-panel"><div class="eyebrow">SESSION COMPLETE</div><h2>${E(app.current.name)}</h2><div class="result-grade">${s.notes.length ? grade : "—"}</div><p>${s.notes.length ? gradeMessage[grade] : "An empty canvas. Add a few notes to begin."}</p><div class="stat-grid"><div class="stat"><strong>${accuracy.toFixed(2)}%</strong><small>Accuracy</small></div><div class="stat"><strong>${s.maxCombo}</strong><small>Max combo</small></div><div class="stat"><strong>${Math.round(s.weight * 1000).toLocaleString()}</strong><small>Score</small></div><div class="stat"><strong>${s.counts.Miss}</strong><small>Misses</small></div></div><div class="judgements">${Object.entries(
         s.counts,
       )
         .map(
@@ -864,8 +877,12 @@
         app.audio.metronome(s.clock, app.current.bpm);
         updateStage();
       }
-      if (s.phase === "running")
+      if (s.phase === "running") {
         s.raw.push({ lane, timestampMs: s.clock.time(now) });
+        const finishButton = $('[data-action="finish"]');
+        finishButton.disabled = false;
+        finishButton.removeAttribute("title");
+      }
     } else if (s.phase === "running") hit(lane, now);
   });
   document.addEventListener("keyup", (e) => {
@@ -1054,6 +1071,17 @@
     app.audio.enabled = app.settings.sound;
     app.audio.volume = app.settings.volume;
     app.charts = await CF.storage.all();
+    // Upgrade the old starter defaults once; later user speed edits stay intact.
+    if (!app.settings.starterSpeed15Applied) {
+      for (const chart of app.charts) {
+        if (chart.demo && chart.scrollSpeed === 10) {
+          chart.scrollSpeed = 15;
+          await CF.storage.save(chart);
+        }
+      }
+      app.settings.starterSpeed15Applied = true;
+      await CF.storage.saveSettings(app.settings);
+    }
     if (!app.settings.initialized) {
       if (!app.charts.length) {
         app.charts = [

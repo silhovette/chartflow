@@ -22,9 +22,9 @@ Data is stored in IndexedDB for the current browser and origin. Opening the file
 
 1. **New chart:** Set the name, lane count (4K-8K), BPM, and scroll speed. Choose **Record a performance** to record input, or **Build from scratch** to open an empty chart in the editor. BPM defines the musical timing and grid alignment.
 2. **Record:** The first lane key establishes time zero and starts the metronome. Lanes stay empty and show only key feedback.
-3. **Pause:** Press **P** to pause. Press it again to resume after a four-number countdown, with each number lasting 0.7 seconds. Pauses and countdowns are excluded from chart time.
-4. **Finish:** Press **Enter** to quantize to a fixed 1/32 grid and open Chart View. Raw input is retained separately. Notes on the same lane and tick are merged, and conflicts are counted.
-5. **Play:** A one-second wait is followed by a complete **3, 2, 1** countdown, with each number lasting 0.7 seconds independently of BPM. Notes enter from the top and are judged individually at the fixed judgment line. Press **P** to pause or resume with a countdown, or **Esc** to return.
+3. **Pause:** Press **P** to pause. Press it again to resume after a four-number countdown, with each number lasting one beat (`60000 / BPM` milliseconds): one full 4/4 bar. Pauses and countdowns are excluded from chart time.
+4. **Finish:** Finish is disabled until the first lane input; pressing Enter while READY prompts you to start recording. After the first input, press **Enter** to quantize to a fixed 1/32 grid and open Chart View. Raw input is retained separately. Notes on the same lane and tick are merged, and conflicts are counted.
+5. **Play:** A one-second wait is followed by a complete **3, 2, 1** countdown, with each number lasting 0.7 seconds independently of BPM. Notes enter from the top and are judged individually at the fixed judgment line. Press **P** to pause or resume with a three-beat BPM-aligned countdown (no extra initial wait), or **Esc** to return.
 6. **Edit:** Add, select, move, copy, resnap, and test notes. Changes save automatically after a 650 ms debounce.
 
 ### Default lane keys
