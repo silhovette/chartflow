@@ -54,7 +54,7 @@ CF.guide = {
     [
       "YOUR NEXT CHAPTER",
       "Perform. Shape. Play.",
-      `<p class="guide-signoff">That’s the flow.</p><div class="guide-finale-mark" aria-hidden="true">≋</div>`,
+      `<p class="guide-signoff">That’s the flow.</p>`,
     ],
   ],
   async firstVisit() {
@@ -66,17 +66,39 @@ CF.guide = {
   open() {
     this.dialog = document.querySelector("#guide");
     if (this.dialog.open) return;
-    this.step = 0;
+    this.step = -1;
     this.busy = false;
+    this.closing = false;
+    this.introSeen = false;
+    this.navigation = 0;
+    this.dialog.innerHTML = "";
     this.dialog.oncancel = (e) => {
       e.preventDefault();
       this.close();
     };
-    this.render();
+    this.dialog.onkeydown = (e) => {
+      if (
+        !["ArrowLeft", "ArrowRight"].includes(e.key) ||
+        e.altKey ||
+        e.ctrlKey ||
+        e.metaKey
+      )
+        return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (this.closing || (this.step === -1 && !this.intro?.done)) return;
+      if (e.key === "ArrowLeft" && this.step > -1) this.go(-1);
+      if (e.key === "ArrowRight") {
+        if (this.step === this.pages.length - 1) this.close();
+        else this.go(1);
+      }
+    };
     this.dialog.showModal();
     document.body.classList.add("guide-open");
+    this.observer = new ResizeObserver(() => this.fit());
+    this.observer.observe(this.dialog);
+    this.render();
     this.dialog.querySelector("#guide-title").focus({ preventScroll: true });
-    this.motion(this.dialog, [{ opacity: 0 }, { opacity: 1 }], 650);
   },
   motion(element, frames, duration) {
     return element
@@ -88,48 +110,119 @@ CF.guide = {
       })
       .finished.catch(() => {});
   },
+  fit() {
+    const stage = this.dialog.querySelector(".guide-scroll"),
+      body = this.dialog.querySelector(".guide-body");
+    if (!stage || !body) {
+      this.intro?.resize();
+      return;
+    }
+    body.style.transform = "translate(-50%, -50%)";
+    const width = stage.clientWidth - 32,
+      height = stage.clientHeight - 16;
+    const scale = Math.min(
+      1,
+      Math.max(1, width) / body.scrollWidth,
+      Math.max(1, height) / body.scrollHeight,
+    );
+    body.style.transform = "translate(-50%, -50%) scale(" + scale + ")";
+    this.intro?.resize();
+  },
   render() {
-    const [label, title, body] = this.pages[this.step];
+    this.intro?.stop();
+    this.intro = null;
+    const intro = this.step === -1;
+    const [label, title, body] = intro
+      ? ["", "Welcome to ChartFlow", ""]
+      : this.pages[this.step];
+    this.dialog.dataset.intro = intro;
     this.dialog.dataset.finale = this.step === this.pages.length - 1;
-    this.dialog.innerHTML = `<div class="guide-top"><span class="eyebrow">CHARTFLOW / GETTING STARTED</span><button class="guide-nav" data-guide="close">Skip guide ↗</button></div><div class="guide-scroll"><div class="guide-body"><div class="section-kicker">${label}</div><h2 id="guide-title" tabindex="-1">${title}</h2>${body}</div></div><footer class="guide-footer"><div class="guide-position"><span aria-live="polite">${String(this.step + 1).padStart(2, "0")} <span>/ ${String(this.pages.length).padStart(2, "0")}</span></span><div class="guide-progress" aria-hidden="true"><i style="width:${((this.step + 1) / this.pages.length) * 100}%"></i></div></div><div class="actions"><button class="guide-nav" data-guide="back" ${this.step === 0 ? "disabled" : ""}>← Back</button><button class="guide-nav guide-next" data-guide="next">${this.step === this.pages.length - 1 ? "Let’s begin ↗" : "Continue →"}</button></div></footer>`;
-    this.dialog.querySelector('[data-guide="close"]').onclick = () =>
-      this.close();
-    this.dialog.querySelector('[data-guide="back"]').onclick = () =>
-      this.go(-1);
-    this.dialog.querySelector('[data-guide="next"]').onclick = () =>
-      this.step === this.pages.length - 1 ? this.close() : this.go(1);
+    this.dialog.classList.remove("intro-ready");
+
+    if (!this.dialog.querySelector(".guide-top")) {
+      this.dialog.innerHTML =
+        '<div class="guide-top"><span class="eyebrow">CHARTFLOW / GETTING STARTED</span><button class="guide-nav" data-guide="close">Skip guide ↗</button></div><div class="guide-scroll"></div><footer class="guide-footer"><div class="guide-position"><span class="guide-page-number" aria-live="polite"></span><div class="guide-progress" aria-hidden="true"><i></i></div></div><div class="actions"><button class="guide-nav" data-guide="back">← Back</button><button class="guide-nav guide-next" data-guide="next"></button></div></footer>';
+      this.dialog.querySelector('[data-guide="close"]').onclick = () =>
+        this.close();
+      this.dialog.querySelector('[data-guide="back"]').onclick = () =>
+        this.go(-1);
+      this.dialog.querySelector('[data-guide="next"]').onclick = () =>
+        this.step === this.pages.length - 1 ? this.close() : this.go(1);
+    }
+    this.dialog.querySelector(".guide-scroll").innerHTML = intro
+      ? '<div class="guide-intro-scene"><canvas aria-hidden="true"></canvas><h2 id="guide-title" class="guide-intro-title" tabindex="-1">Welcome to ChartFlow</h2></div>'
+      : `<div class="guide-body"><div class="guide-page"><div class="section-kicker">${label}</div><h2 id="guide-title" tabindex="-1">${title}</h2>${body}</div></div>`;
+    this.dialog.querySelector(".guide-page-number").innerHTML = intro
+      ? "INTRO"
+      : `${String(this.step + 1).padStart(2, "0")} <span>/ ${String(this.pages.length).padStart(2, "0")}</span>`;
+    this.dialog.querySelector(".guide-progress i").style.width =
+      (intro ? 0 : ((this.step + 1) / this.pages.length) * 100) + "%";
+    this.dialog.querySelector('[data-guide="back"]').disabled = intro;
+    this.dialog.querySelector('[data-guide="next"]').textContent =
+      this.step === this.pages.length - 1 ? "Let’s begin ↗" : "Continue →";
+    this.dialog.querySelector(".guide-top").inert = intro;
+    this.dialog.querySelector(".guide-footer").inert = intro;
+    this.fit();
+    if (intro)
+      this.intro = new CF.GuideIntro(
+        this.dialog.querySelector(".guide-intro-scene"),
+        () => {
+          this.introSeen = true;
+          this.dialog.classList.add("intro-ready");
+          this.dialog.querySelector(".guide-top").inert = false;
+          this.dialog.querySelector(".guide-footer").inert = false;
+        },
+        this.introSeen,
+      );
   },
   async go(delta) {
-    if (this.busy) return;
-    this.busy = true;
-    await this.motion(
-      this.dialog.querySelector(".guide-body"),
-      [
-        { opacity: 1, transform: "translateY(0)" },
-        { opacity: 0, transform: "translateY(-8px)" },
-      ],
-      220,
+    if (this.closing) return;
+    const next = Math.max(
+      -1,
+      Math.min(this.pages.length - 1, this.step + delta),
     );
-    this.step = Math.max(0, Math.min(this.pages.length - 1, this.step + delta));
+    if (next === this.step) return;
+    this.step = next;
+    const token = ++this.navigation;
+    this.busy = true;
+    this.transition?.cancel();
     this.render();
     this.dialog.querySelector("#guide-title").focus({ preventScroll: true });
-    await this.motion(
-      this.dialog.querySelector(".guide-body"),
-      [
-        { opacity: 0, transform: "translateY(12px)" },
-        { opacity: 1, transform: "translateY(0)" },
-      ],
-      480,
-    );
-    this.busy = false;
+    if (this.step >= 0) {
+      this.transition = this.dialog.querySelector(".guide-page").animate(
+        [
+          { opacity: 0, transform: "translateY(8px)" },
+          { opacity: 1, transform: "translateY(0)" },
+        ],
+        {
+          duration: matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? 0
+            : 720,
+          easing: "cubic-bezier(.16,1,.3,1)",
+        },
+      );
+      await this.transition.finished.catch(() => {});
+    }
+    if (token === this.navigation) this.busy = false;
   },
   async close() {
-    if (this.busy) return;
+    if (this.closing || !this.dialog.open) return;
+    this.closing = true;
+    this.navigation++;
+    this.transition?.cancel();
     this.busy = true;
-    await this.motion(this.dialog, [{ opacity: 1 }, { opacity: 0 }], 300);
+    this.intro?.stop();
+    this.observer?.disconnect();
+    const cover = document.createElement("div");
+    cover.className = "guide-exit";
+    document.body.append(cover);
+    await this.motion(this.dialog, [{ opacity: 1 }, { opacity: 0 }], 380);
     this.dialog.close();
     document.body.classList.remove("guide-open");
+    await this.motion(cover, [{ opacity: 1 }, { opacity: 0 }], 900);
+    cover.remove();
     this.busy = false;
+    this.closing = false;
     CF.storage
       .request("settings", "readwrite", (s) => s.put(true, "guideSeen"))
       .catch(() => CF.ui.toast("Guide preference could not be saved."));

@@ -15,16 +15,23 @@ const assert = require("node:assert/strict");
       await p.locator("#guide-title").innerText(),
       "Welcome to ChartFlow",
     );
-    await p.waitForFunction(() =>
-      document
-        .querySelector("#guide")
-        .getAnimations()
-        .every((a) => a.playState === "finished"),
+    assert.equal(await p.locator(".guide-footer").isVisible(), false);
+    await p.keyboard.press("ArrowRight");
+    assert.equal(await p.evaluate(() => CF.guide.step), -1);
+    await p.waitForTimeout(2200);
+    await p.screenshot({ path: "artifacts/guide-ribbons.png" });
+    await p.waitForFunction(() => CF.guide.intro?.done);
+    assert.ok(await p.locator(".guide-footer").isVisible());
+    await p.waitForFunction(
+      () =>
+        +getComputedStyle(document.querySelector(".guide-footer")).opacity >
+        0.99,
     );
-    await p.screenshot({ path: "artifacts/guide-welcome.png", fullPage: true });
+    await p.screenshot({ path: "artifacts/guide-intro.png" });
     const bounds = await p.locator("#guide").boundingBox();
     assert.deepEqual(bounds, { x: 0, y: 0, width: 1440, height: 1000 });
     const titles = [
+      "Welcome to ChartFlow",
       "Create a Chart",
       "Perform Your Rhythm",
       "Finish the Recording",
@@ -32,6 +39,16 @@ const assert = require("node:assert/strict");
       "Refine It in the Editor",
       "Essential Controls",
     ];
+    await p.keyboard.press("ArrowRight");
+    await p.waitForFunction(() => !CF.guide.busy);
+    assert.equal(await p.evaluate(() => CF.guide.step), 0);
+    await p.keyboard.press("ArrowRight");
+    await p.waitForFunction(() => !CF.guide.busy);
+    assert.equal(await p.evaluate(() => CF.guide.step), 1);
+    await p.keyboard.press("ArrowLeft");
+    await p.waitForFunction(() => !CF.guide.busy);
+    assert.equal(await p.evaluate(() => CF.guide.step), 0);
+    assert.equal(await p.locator("#guide-title").innerText(), titles.shift());
     for (const title of titles) {
       await p.locator('[data-guide="next"]').click();
       await p.waitForFunction(() => !CF.guide.busy);
@@ -57,8 +74,9 @@ const assert = require("node:assert/strict");
       await p.locator("#guide-title").innerText(),
       "Perform. Shape. Play.",
     );
+    assert.equal(await p.locator(".guide-finale-mark").count(), 0);
     await p.screenshot({ path: "artifacts/guide-finale.png" });
-    await p.locator('[data-guide="next"]').click();
+    await p.keyboard.press("ArrowRight");
     await p.waitForFunction(() => !CF.guide.busy);
     assert.equal(await p.locator("#guide").isVisible(), false);
     await p.reload();
@@ -92,7 +110,7 @@ const assert = require("node:assert/strict");
     assert.equal(await p.evaluate(() => CF.app.session.phase), "paused");
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: automatic guide, eight pages, controls, back/finish, revisit, Escape, mobile layout and paused gameplay/input isolation.",
+      "PASS: automatic guide, cinematic intro and eight pages, controls, back/finish, revisit, Escape, mobile layout and paused gameplay/input isolation.",
     );
   } finally {
     await b.close();

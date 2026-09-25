@@ -130,6 +130,8 @@ Version 0.1 supports tap notes and a single BPM per chart. Audio consists of syn
 
 ### Beginner guide
 
-On first visit, an eight-page, full-viewport guide introduces creating, recording, finishing, playing, editing, and essential controls. Completing or skipping it is remembered for this browser and origin. Reopen it from the sidebar’s **Beginner guide** (`?` on small screens) or the home page’s **How it works** link. Opening the guide pauses live play/recording and stops editor preview; keyboard input stays inside the guide until it closes.
+On first visit, a cinematic opening followed by an eight-page, full-viewport guide introduces creating, recording, finishing, playing, editing, and essential controls. Completing or skipping it is remembered for this browser and origin. Reopen it from the sidebar’s **Beginner guide** (`?` on small screens). Opening the guide pauses live play/recording and stops editor preview; keyboard input stays inside the guide until it closes.
+
+The opening lasts about six seconds; navigation fades in after the welcome reveal. Use the left and right arrow keys to move between guide pages.
 
 Guide interaction and responsive layout checks: `node tests/guide.cjs`.
