@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#080b10" />
+    <title>ChartFlow — A space for your rhythm</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script defer src="rhythm.js"></script>
+    <script defer src="storage.js"></script>
+    <script defer src="ui.js"></script>
+    <script defer src="highway.js"></script>
+    <script defer src="editor.js"></script>
+    <script defer src="progress.js"></script>
+    <script defer src="account.js"></script>
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true"></div>
+    <aside class="sidebar">
+      <a class="brand" href="#" data-action="library"
+        ><span class="brand-mark">≋</span>ChartFlow<span class="version"
+          >0.1</span
+        ></a
+      >
+      <div class="workspace-label">WORKSPACE</div>
+      <button class="nav-item active" data-action="library">
+        <span>▤</span> Your charts
+        <span class="nav-count" id="nav-count">0</span>
+      </button>
+      <button class="nav-item" data-action="new">
+        <span>＋</span> Create a chart
+      </button>
+      <button class="nav-item" data-action="import">
+        <span>↥</span> Import chart
+      </button>
+      <div class="sidebar-bottom">
+        <button class="user-chip" data-action="account">
+          <span id="user-avatar">P</span
+          ><span
+            ><strong id="user-name">Player</strong
+            ><small>Profile · Saves · Achievements</small></span
+          ><span>↗</span>
+        </button>
+        <div class="local-status">
+          <i class="led"></i> Local workspace
+          <small>Your rhythms. On your device.</small>
+        </div>
+        <button class="nav-item" data-action="settings">
+          <span>⚙</span> Settings <span class="shortcut">⌘</span>
+        </button>
+        <div class="sidebar-footer">MADE FOR THE FLOW <span>↗</span></div>
+      </div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div id="breadcrumb">Workspace <span>/</span> Your charts</div>
+        <div class="topbar-right">
+          <i class="led"></i><span id="save-status">All changes saved</span
+          ><span class="divider"></span><span class="mono">CF / 001</span>
+        </div>
+      </header>
+      <main id="main"></main>
+      <footer class="app-footer">
+        <span><i class="led"></i> ALL SYSTEMS IN RHYTHM</span
+        ><span>CHARTFLOW <b>·</b> OBSIDIAN GLASS <b>·</b> v0.1</span>
+      </footer>
+    </div>
+    <dialog id="dialog"></dialog>
+    <div id="toast" role="status"></div>
+    <input
+      type="file"
+      id="import-file"
+      accept=".json,application/json"
+      hidden
+    />
+  </body>
+</html>
