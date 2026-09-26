@@ -114,7 +114,7 @@ const assert = require("node:assert/strict");
       audio.tone();
       return peak;
     });
-    assert.ok(Math.abs(amplitude - 0.756) < 1e-10);
+    assert.ok(Math.abs(amplitude - 0.42525) < 1e-10);
 
     await page.locator('[data-action="play"]').click();
     await page.evaluate(() => {

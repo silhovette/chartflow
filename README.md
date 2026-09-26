@@ -21,10 +21,10 @@ Data is stored in IndexedDB for the current browser and origin. Opening the file
 ## Create and play
 
 1. **New chart:** Set the name, lane count (4K-8K), BPM, and scroll speed. Choose **Record a performance** to record input, or **Build from scratch** to open an empty chart in the editor. BPM defines the musical timing and grid alignment.
-2. **Record:** The first lane key establishes time zero and starts the metronome. Lanes stay empty and show only key feedback.
+2. **Record:** Press **Space** to hear eight metronome beats at the selected BPM while the screen counts down **8 to 1** (two 4/4 bars). Recording starts automatically on the next downbeat, even with no lane input. This downbeat establishes time zero; count-in inputs are excluded. Lanes stay empty and show only key feedback.
 3. **Pause:** Press **P** to pause. Press it again to resume after a four-number countdown, with each number lasting one beat (`60000 / BPM` milliseconds): one full 4/4 bar. Pauses and countdowns are excluded from chart time.
-4. **Finish:** Finish is disabled until the first lane input; pressing Enter while READY prompts you to start recording. After the first input, press **Enter** to quantize to a fixed 1/32 grid and open Chart View. Raw input is retained separately. Notes on the same lane and tick are merged, and conflicts are counted.
-5. **Play:** A one-second wait is followed by a complete **3, 2, 1** countdown, with each number lasting 0.7 seconds independently of BPM. Notes enter from the top and are judged individually at the fixed judgment line. Press **P** to pause or resume with a three-beat BPM-aligned countdown (no extra initial wait), or **Esc** to return.
+4. **Finish:** Finish is disabled until a note is captured during recording; pressing Enter earlier explains how to start. After capturing a note, press **Enter** to quantize to a fixed 1/32 grid and open Chart View. Raw input is retained separately. Notes on the same lane and tick are merged, and conflicts are counted.
+5. **Play:** A one-second wait is followed by a complete **3, 2, 1** countdown, with each number lasting 0.6 seconds independently of BPM. Notes enter from the top and are judged individually at the fixed judgment line. Press **P** to pause or resume with the same 0.6-second countdown steps (no extra initial wait), or **Esc** to return.
 6. **Edit:** Add, select, move, copy, resnap, and test notes. Changes save automatically after a 650 ms debounce.
 
 ### Default lane keys
@@ -37,7 +37,7 @@ Data is stored in IndexedDB for the current browser and origin. Opening the file
 | 7K | `S D F J K L ;` |
 | 8K | `A S D F J K L ;` |
 
-Change bindings in **Settings**. P, Enter, Escape, and combinations with Ctrl, Cmd, or Alt are reserved. Physical keys are tracked independently for simultaneous eight-key input. **Key Check** helps identify combinations that your keyboard hardware does not report.
+Change bindings in **Settings**. P, R, Enter, Escape, and combinations with Ctrl, Cmd, or Alt are reserved. During play, R restarts the chart from the beginning (or the current test position). Physical keys are tracked independently for simultaneous eight-key input. **Key Check** helps identify combinations that your keyboard hardware does not report.
 
 New charts and sample charts default to scroll speed **15**. The **Scroll speed** field in Play and Edit accepts values from **1 to 25**, applies immediately, and saves with the chart. Speed changes affect note travel without changing note ticks, BPM, or raw input. The initial lead-in provides the full travel time from the top of the lanes to the judgment line, including for notes at time zero.
 

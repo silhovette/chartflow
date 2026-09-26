@@ -14,7 +14,7 @@ CF.guide = {
     [
       "02 / PERFORM",
       "Perform Your Rhythm",
-      `<p>The recording screen starts empty.</p><p class="guide-callout">Your first lane key starts the recording and the metronome.</p><p>Play any rhythm you want using the lane keys. You can press multiple keys at the same time to create chords.</p><p>No notes are shown while recording — just follow the beat and play naturally.</p>`,
+      `<p>The recording screen starts empty.</p><p class="guide-callout">Press Space to start an 8-beat metronome countdown at your chosen BPM.</p><p>After two 4/4 bars, recording starts automatically on the next downbeat, even if you play no notes. Then play any rhythm you want using the lane keys. You can press multiple keys at the same time to create chords.</p><p>No notes are shown while recording — just follow the beat and play naturally.</p>`,
     ],
     [
       "03 / FINISH",
@@ -36,6 +36,7 @@ CF.guide = {
       "Essential Controls",
       `<table class="guide-controls"><thead><tr><th>Control</th><th>Action</th></tr></thead><tbody>${[
         ["P", "Pause / resume"],
+        ["Space", "Start recording with an 8-beat count-in"],
         ["Enter", "Finish recording"],
         ["Esc", "Back / cancel"],
         ["Ctrl + Z", "Undo"],
@@ -61,18 +62,22 @@ CF.guide = {
     const seen = await CF.storage.request("settings", "readonly", (s) =>
       s.get("guideSeen"),
     );
-    this.open({ introOnly: !!seen });
+    this.open({ introOnly: !!seen, showIntro: true });
   },
-  open({ introOnly = false } = {}) {
+  open({ introOnly = false, showIntro = introOnly } = {}) {
     this.dialog = document.querySelector("#guide");
     if (this.dialog.open) return;
     this.introOnly = introOnly;
     clearTimeout(this.exitTimer);
-    this.step = -1;
+    this.firstStep = showIntro ? -1 : 0;
+    this.step = this.firstStep;
     this.busy = false;
     this.closing = false;
     this.introSeen = false;
     this.navigation = 0;
+    this.lastWheel = 0;
+    this.wheelDelta = 0;
+    this.wheelUsed = false;
     this.dialog.innerHTML = "";
     this.dialog.oncancel = (e) => {
       e.preventDefault();
@@ -94,11 +99,40 @@ CF.guide = {
         (this.step === -1 && !this.intro?.done)
       )
         return;
-      if (e.key === "ArrowLeft" && this.step > -1) this.go(-1);
+      if (e.key === "ArrowLeft" && this.step > this.firstStep) this.go(-1);
       if (e.key === "ArrowRight") {
         if (this.step === this.pages.length - 1) this.close();
         else this.go(1);
       }
+    };
+    this.dialog.onwheel = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || !e.deltaY ||
+          Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const now = performance.now();
+      // Treat a trackpad gesture and its inertia as one page turn.
+      if (now - this.lastWheel > 180) {
+        this.wheelDelta = 0;
+        this.wheelUsed = false;
+      }
+      this.lastWheel = now;
+      if (this.introOnly || this.closing || this.busy || this.wheelUsed ||
+          (this.step === -1 && !this.intro?.done)) return;
+      const scale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? this.dialog.clientHeight : 1;
+      if (Math.sign(e.deltaY) !== Math.sign(this.wheelDelta)) this.wheelDelta = 0;
+      this.wheelDelta += e.deltaY * scale;
+      if (Math.abs(this.wheelDelta) < 40) return;
+      this.wheelUsed = true;
+      if (this.wheelDelta > 0 && this.step === this.pages.length - 1) this.close();
+      else this.go(Math.sign(this.wheelDelta));
+    };
+    if (showIntro || matchMedia("(prefers-reduced-motion: reduce)").matches)
+      delete this.dialog.dataset.state;
+    else this.dialog.dataset.state = "opening";
+    this.dialog.onanimationend = (event) => {
+      if (event.target === this.dialog && event.animationName === "guide-enter" &&
+          this.dialog.dataset.state === "opening") delete this.dialog.dataset.state;
     };
     this.dialog.showModal();
     document.body.classList.add("guide-open");
@@ -107,6 +141,32 @@ CF.guide = {
     this.render();
     document.body.classList.remove("startup-pending");
     this.dialog.querySelector("#guide-title").focus({ preventScroll: true });
+  },
+  playIntroMusic(startAnimation) {
+    this.stopIntroMusic();
+    const music = new Audio("audio/intro.ogg");
+    this.introMusic = music;
+    music.preload = "auto";
+    music.volume = 0;
+    let started = false;
+    const active = () => this.introMusic === music && this.dialog.open && !this.closing;
+    const begin = () => {
+      if (!active() || started) return;
+      started = true;
+      if (!music.paused) CF.music.watchIntro(music);
+      startAnimation(music.currentTime);
+    };
+    // Start together when playback succeeds; never block the opening on audio permission.
+    music.onerror = begin;
+    music.play().then(begin).catch((error) => {
+      if (error.name !== "AbortError") begin();
+    });
+  },
+  stopIntroMusic() {
+    if (this.introMusic) {
+      CF.music.stopIntro(this.introMusic);
+      this.introMusic = null;
+    }
   },
   motion(element, frames, duration) {
     return element
@@ -138,8 +198,10 @@ CF.guide = {
   },
   render() {
     this.intro?.stop();
+    this.stopIntroMusic();
     this.intro = null;
     const intro = this.step === -1;
+    CF.music.setIntro(intro);
     const [label, title, body] = intro
       ? ["", "Welcome to ChartFlow", ""]
       : this.pages[this.step];
@@ -165,33 +227,37 @@ CF.guide = {
       : `${String(this.step + 1).padStart(2, "0")} <span>/ ${String(this.pages.length).padStart(2, "0")}</span>`;
     this.dialog.querySelector(".guide-progress i").style.width =
       (intro ? 0 : ((this.step + 1) / this.pages.length) * 100) + "%";
-    this.dialog.querySelector('[data-guide="back"]').disabled = intro;
+    this.dialog.querySelector('[data-guide="back"]').disabled = this.step === this.firstStep;
     this.dialog.querySelector('[data-guide="next"]').textContent =
       this.step === this.pages.length - 1 ? "Let’s begin ↗" : "Continue →";
     this.dialog.querySelector(".guide-top").inert = intro;
     this.dialog.querySelector(".guide-footer").inert = intro;
     this.fit();
-    if (intro)
-      this.intro = new CF.GuideIntro(
-        this.dialog.querySelector(".guide-intro-scene"),
-        () => {
-          this.introSeen = true;
-          if (this.introOnly) {
-            this.exitTimer = setTimeout(() => this.close(), 950);
-            return;
-          }
-          this.dialog.classList.add("intro-ready");
-          this.dialog.querySelector(".guide-top").inert = false;
-          this.dialog.querySelector(".guide-footer").inert = false;
-        },
-        this.introSeen,
-        this.introOnly,
-      );
+    if (intro) {
+      this.playIntroMusic((elapsed) => {
+        this.intro = new CF.GuideIntro(
+          this.dialog.querySelector(".guide-intro-scene"),
+          () => {
+            this.introSeen = true;
+            if (this.introOnly) {
+              this.exitTimer = setTimeout(() => this.close(), 950);
+              return;
+            }
+            this.dialog.classList.add("intro-ready");
+            this.dialog.querySelector(".guide-top").inert = false;
+            this.dialog.querySelector(".guide-footer").inert = false;
+          },
+          false,
+          this.introOnly,
+        );
+        this.intro.start -= elapsed * 1000;
+      });
+    }
   },
   async go(delta) {
     if (this.introOnly || this.closing) return;
     const next = Math.max(
-      -1,
+      this.firstStep,
       Math.min(this.pages.length - 1, this.step + delta),
     );
     if (next === this.step) return;
@@ -226,18 +292,21 @@ CF.guide = {
     this.transition?.cancel();
     this.busy = true;
     this.intro?.stop();
+    this.stopIntroMusic();
     this.observer?.disconnect();
+    const opacity = +getComputedStyle(this.dialog).opacity;
+    this.dialog.dataset.state = "closing";
     let cover;
     if (this.introOnly) {
-      this.dialog.dataset.state = "closing";
-      await this.motion(this.dialog, [{ opacity: 1 }, { opacity: 0 }], 900);
+      await this.motion(this.dialog, [{ opacity }, { opacity: 0 }], 900);
     } else {
       cover = document.createElement("div");
       cover.className = "guide-exit";
       document.body.append(cover);
-      await this.motion(this.dialog, [{ opacity: 1 }, { opacity: 0 }], 380);
+      await this.motion(this.dialog, [{ opacity }, { opacity: 0 }], 380);
     }
     this.dialog.close();
+    CF.music.setIntro(false);
     document.body.classList.remove("guide-open");
     delete this.dialog.dataset.state;
     if (cover) {

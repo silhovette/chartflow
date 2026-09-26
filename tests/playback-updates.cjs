@@ -23,6 +23,7 @@ const path = require("node:path");
       delete s.bindings[7];
       delete s.bindings[8];
       s.bindings[4][0] = "a";
+      s.bindings[5][0] = "r";
       await CF.storage.saveSettings(s);
     });
     await page.reload();
@@ -35,6 +36,10 @@ const path = require("node:path");
       await page.evaluate(() => CF.app.settings.bindings[4][0]),
       "a",
     );
+    assert.equal(
+      await page.evaluate(() => CF.app.settings.bindings[5][0]),
+      "d",
+    );
     await page.locator('.page-heading [data-action="new"]').click();
     await page.locator('[data-keys="8"]').click();
     await page.locator("h1").click();
@@ -43,6 +48,8 @@ const path = require("node:path");
     assert.equal(await page.locator(".test-key.pressed").count(), 8);
     for (const k of keys) await page.keyboard.up(k);
     await page.locator('[value="record"]').click();
+  await page.keyboard.press("Space");
+  await page.waitForFunction(() => CF.app.session.phase === "running");
     for (const k of keys) await page.keyboard.down(k);
     assert.equal(await page.evaluate(() => CF.app.session.raw.length), 8);
     assert.equal(await page.evaluate(() => CF.app.pressed.size), 8);
@@ -76,7 +83,7 @@ const path = require("node:path");
       end: CF.app.session.countUntil,
       now: performance.now(),
     }));
-    assert.equal(schedule.end - schedule.start, 1950);
+    assert.equal(schedule.end - schedule.start, 1800);
     assert.ok(schedule.start - schedule.now > 800);
     await page.locator("#scroll-speed").fill("12");
     await page.locator("#scroll-speed").press("Tab");
@@ -87,11 +94,11 @@ const path = require("node:path");
     );
     assert.equal(await page.locator("#stage-overlay h2").textContent(), "3");
     await page.waitForFunction(
-      () => performance.now() >= CF.app.session.countStart + 730,
+      () => performance.now() >= CF.app.session.countStart + 680,
     );
     assert.equal(await page.locator("#stage-overlay h2").textContent(), "2");
     await page.waitForFunction(
-      () => performance.now() >= CF.app.session.countStart + 1380,
+      () => performance.now() >= CF.app.session.countStart + 1280,
     );
     assert.equal(await page.locator("#stage-overlay h2").textContent(), "1");
     const noteRows = () =>
@@ -145,6 +152,24 @@ const path = require("node:path");
       fullPage: true,
     });
     for (const k of keys) await page.keyboard.up(k);
+    await page.locator('[data-action="restart"]').click();
+    assert.deepEqual(
+      await page.evaluate(() => ({
+        phase: CF.app.session.phase,
+        combo: CF.app.session.combo,
+        judged: CF.app.session.judged,
+        startTick: CF.app.session.startTick,
+      })),
+      { phase: "countin", combo: 0, judged: 0, startTick: 0 },
+    );
+    await page.evaluate(() => { window.sessionBeforeRestartKey = CF.app.session; });
+    await page.keyboard.press("r");
+    assert.equal(
+      await page.evaluate(() => CF.app.session !== window.sessionBeforeRestartKey),
+      true,
+    );
+    assert.equal(await page.evaluate(() => CF.app.session.phase), "countin");
+    assert.equal(await page.evaluate(() => CF.app.session.judged), 0);
     await page.keyboard.press("Escape");
     await page.locator('[data-action="edit"]').click();
     assert.equal(await page.locator(".topbar").isVisible(), false);
@@ -201,6 +226,25 @@ const path = require("node:path");
       path: path.join(__dirname, "../artifacts/preview-updated.png"),
       fullPage: true,
     });
+    // Once hit glows finish fading, a paused preview stays unchanged until input.
+    await page.waitForTimeout(550);
+    await page.evaluate(() => {
+      const ctx = CF.app.editor.canvas.getContext("2d");
+      window.pausedRepaints = 0;
+      window.previewClear = ctx.clearRect;
+      ctx.clearRect = function (...args) {
+        window.pausedRepaints++;
+        return window.previewClear.apply(this, args);
+      };
+    });
+    await page.waitForTimeout(150);
+    assert.equal(await page.evaluate(() => window.pausedRepaints), 0);
+    await page.setViewportSize({ width: 1300, height: 900 });
+    await page.waitForFunction(() => window.pausedRepaints > 0);
+    await page.evaluate(() => {
+      CF.app.editor.canvas.getContext("2d").clearRect = window.previewClear;
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await page.locator('[data-action="timeline-play"]').click();
     await page.waitForTimeout(120);
     assert.ok((await page.evaluate(() => CF.app.editor.clock.time())) > paused);
@@ -229,7 +273,7 @@ const path = require("node:path");
     assert.equal(await page.locator("#dialog").evaluate((d) => d.open), false);
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: compact header, title-first modes, 8-key recording/judgement, legacy settings, exact delayed 0.65-second countdown steps, empty countdown lanes, top entry, falling preview, pause/resume, viewport restore, speed persistence.",
+      "PASS: compact header, title-first modes, 8-key recording/judgement, legacy settings, exact delayed 0.6-second countdown steps, empty countdown lanes, top entry, falling preview, pause/resume, viewport restore, speed persistence.",
     );
   } finally {
     await browser.close();

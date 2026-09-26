@@ -18,6 +18,9 @@ const assert = require("node:assert/strict");
     assert.equal(await p.locator(".guide-footer").isVisible(), false);
     await p.keyboard.press("ArrowRight");
     assert.equal(await p.evaluate(() => CF.guide.step), -1);
+    await p.mouse.move(720, 500);
+    await p.mouse.wheel(0, 120);
+    assert.equal(await p.evaluate(() => CF.guide.step), -1);
     await p.waitForTimeout(2200);
     await p.screenshot({ path: "artifacts/guide-ribbons.png" });
     await p.waitForFunction(() => CF.guide.intro?.done);
@@ -39,7 +42,7 @@ const assert = require("node:assert/strict");
       "Refine It in the Editor",
       "Essential Controls",
     ];
-    await p.keyboard.press("ArrowRight");
+    await p.mouse.wheel(0, 120);
     await p.waitForFunction(() => !CF.guide.busy);
     assert.equal(await p.evaluate(() => CF.guide.step), 0);
     await p.keyboard.press("ArrowRight");
@@ -54,7 +57,7 @@ const assert = require("node:assert/strict");
       await p.waitForFunction(() => !CF.guide.busy);
       assert.equal(await p.locator("#guide-title").innerText(), title);
     }
-    assert.equal(await p.locator(".guide-controls tbody tr").count(), 9);
+    assert.equal(await p.locator(".guide-controls tbody tr").count(), 10);
     await p.locator('[data-guide="back"]').click();
     await p.waitForFunction(() => !CF.guide.busy);
     assert.equal(
@@ -126,12 +129,38 @@ const assert = require("node:assert/strict");
       await p.locator("#guide-title").innerText(),
       "Welcome to ChartFlow",
     );
-    await p.keyboard.press("Escape");
+    assert.equal(await p.evaluate(() => CF.guide.step), 0);
+    assert.equal(await p.locator(".guide-intro-scene").count(), 0);
+    assert.equal(await p.evaluate(() => CF.guide.introMusic), null);
+    assert.ok(await p.locator('[data-guide="back"]').isDisabled());
+    await p.mouse.move(190, 350);
+    await p.mouse.wheel(0, -120);
+    await p.keyboard.press("ArrowLeft");
+    assert.equal(await p.evaluate(() => CF.guide.step), 0);
+    await p.waitForTimeout(200);
+    await p.mouse.wheel(0, 120);
+    await p.waitForFunction(() => CF.guide.step === 1 && !CF.guide.busy);
+    await p.mouse.wheel(0, -120);
+    await p.waitForFunction(() => CF.guide.step === 0 && !CF.guide.busy);
+    // A trackpad burst must advance one page, not skip the whole guide.
+    await p.evaluate(() => {
+      for (let i = 0; i < 20; i++) CF.guide.dialog.dispatchEvent(
+        new WheelEvent("wheel", { deltaY: 20, bubbles: true, cancelable: true }),
+      );
+    });
     await p.waitForFunction(() => !CF.guide.busy);
+    assert.equal(await p.evaluate(() => CF.guide.step), 1);
+    await p.evaluate(() => CF.guide.go(100));
+    await p.mouse.wheel(0, 120);
+    await p.waitForFunction(() => !CF.guide.dialog.open && !CF.guide.busy);
     assert.equal(await p.locator("#guide").isVisible(), false);
+    assert.equal(await p.evaluate(() => CF.app.state), "library");
+    assert.equal(await p.evaluate(() => CF.guide.introMusic), null);
     await p.setViewportSize({ width: 1440, height: 1000 });
     await p.locator('.page-heading [data-action="new"]').click();
     await p.locator('[value="record"]').click();
+    await p.keyboard.press("Space");
+    await p.waitForFunction(() => CF.app.session.phase === "running");
     await p.keyboard.press("d");
     await p
       .getByRole("button", { name: "Open beginner guide", exact: true })

@@ -147,7 +147,7 @@ CF.Editor = class {
     return this.notes.map((n) =>
       this.selected.has(n.id)
         ? { ...n, tick: n.tick + dt, lane: n.lane + dl }
-        : { ...n },
+        : n,
     );
   }
   shift(dt, dl) {
@@ -171,7 +171,7 @@ CF.Editor = class {
       this.updateUI();
       return;
     }
-    if (this.commit([...this.snapshot(), n])) {
+    if (this.commit([...this.notes, n])) {
       this.selected = new Set([n.id]);
       this.updateUI();
     }
@@ -182,7 +182,7 @@ CF.Editor = class {
         this.notes.map((n) =>
           this.selected.has(n.id)
             ? { ...n, tick: Math.round(n.tick / this.step) * this.step }
-            : { ...n },
+            : n,
         ),
       );
   }
@@ -203,7 +203,7 @@ CF.Editor = class {
       tick: n.tick - start + Math.round(this.cursor / this.step) * this.step,
       lane: n.lane - lane + this.cursorLane,
     }));
-    if (this.commit([...this.snapshot(), ...next])) {
+    if (this.commit([...this.notes, ...next])) {
       this.selected = new Set(next.map((n) => n.id));
       this.updateUI();
     }
@@ -422,12 +422,16 @@ CF.Editor = class {
   }
   draw(audio) {
     if (!this.canvas?.isConnected) return;
-    if (this.preview) this.advancePreview(audio);
+    if (this.preview) {
+      // Repaint the final frame that clears a fading hit before becoming idle.
+      if (this.previewHits.length) this.dirty = true;
+      if (this.playing || this.previewHits.length) this.advancePreview(audio);
+    }
     const { ctx, w, h } = CF.ui.fit(this.canvas);
     // Static editor frames only need repainting after input or a size change.
     const previous = this.rendered;
     if (
-      !this.preview && !this.dirty && previous &&
+      !this.playing && !this.previewHits?.length && !this.dirty && previous &&
       previous.w === w && previous.h === h &&
       previous.dpr === devicePixelRatio && previous.canvas === this.canvas &&
       previous.offset === this.offset && previous.zoom === this.zoom &&

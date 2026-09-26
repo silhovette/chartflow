@@ -44,6 +44,8 @@ const { pathToFileURL } = require("node:url");
   assert.equal(await page.locator(".test-key.pressed").count(), 6);
   for (const k of ["s", "d", "f", "j", "k", "l"]) await page.keyboard.up(k);
   await page.locator('[value="record"]').click();
+  await page.keyboard.press("Space");
+  await page.waitForFunction(() => CF.app.session.phase === "running");
   await page.keyboard.press("s");
   await page.keyboard.press("Control+d");
   assert.equal(await page.evaluate(() => CF.app.session.raw.length), 1);

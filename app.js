@@ -21,6 +21,11 @@
   });
   const button = (label, action, cls = "", extra = "") =>
     `<button class="button ${cls}" data-action="${action}" ${extra}>${label}</button>`;
+  let frameHandle = null;
+  function scheduleFrame() {
+    if (frameHandle === null && ["record", "play", "editor"].includes(app.state))
+      frameHandle = requestAnimationFrame(frame);
+  }
   function saveStatus(text) {
     const status = $("#save-status");
     status.hidden = text === "All changes saved";
@@ -64,6 +69,10 @@
     app.audio.stop();
     app.pressed.clear();
     app.state = state;
+    cancelAnimationFrame(frameHandle);
+    frameHandle = null;
+    scheduleFrame();
+    CF.music.setScreen(state);
     document.body.dataset.screen = state;
     $("#main").innerHTML = html;
     $("#main").classList.remove("screen-enter");
@@ -121,7 +130,7 @@
       `${header("Your charts", "A space for your rhythm. Capture it. Shape it. Play it.", button("↥ <span>Import</span>", "import") + button("＋ New chart", "new", "primary"))}
   <section class="hero glass"><div class="hero-copy"><div class="eyebrow">FROM INSTINCT TO INSTRUMENT</div><h2>Find your rhythm.<br>Make it a chart.</h2><p>Perform into empty lanes. Turn a moment of flow<br>into something you can play, perfect, and keep.</p><div class="actions">${button("Start creating <span>↗</span>", "new", "primary")}</div></div><div class="hero-visual" aria-hidden="true"><div class="hero-art"><div class="hero-grid">${[0, 1, 2, 3].map((n) => `<div class="hero-lane">${[0, 1, 2].map((k) => `<i class="${n === 1 && k === 1 ? "hero-note-highlight" : ""}" style="top:calc(${15 + ((n * 21 + k * 32) % 80)}% - 4.5px)"></i>`).join("")}</div>`).join("")}<div class="hero-line"></div></div></div><div class="hero-label">EVERY PATTERN STARTS WITH A PULSE</div></div></section>
   <section aria-label="Chart library"><div class="section-bar"><div class="section-title">All charts <span class="pill">${app.charts.length}</span></div><div class="filter-group"><div class="search-wrap"><span>⌕</span><input class="search" id="search" placeholder="Search your charts…" aria-label="Search charts"></div><select id="sort" aria-label="Sort charts"><option value="recent">Recently edited</option><option value="name">Name A–Z</option><option value="bpm">BPM</option></select></div></div><div class="list-labels"><span>CHART / DETAILS</span><span>RHYTHM OVERVIEW</span><span>LAST EDITED</span><span style="text-align:right">ACTIONS</span></div><div class="chart-list" id="chart-list"></div><div class="library-note"><span id="library-count"></span><span>Stored locally <b>·</b> Ready when you are</span></div></section>
-  <section class="workflow"><div class="workflow-step"><span class="step-number">01 —</span><div><h3>Perform freely</h3><p>The first key starts your recording.<br>Just you, empty lanes, and the beat.</p></div></div><div class="workflow-step"><span class="step-number">02 —</span><div><h3>Make it precise</h3><p>Automatic 1/32 quantization.<br>A full editor for the finer details.</p></div></div><div class="workflow-step"><span class="step-number">03 —</span><div><h3>Get into the flow</h3><p>Play your creation. Find your limits.<br>Refine it, then go again.</p></div></div></section>`,
+  <section class="workflow"><div class="workflow-step"><span class="step-number">01 —</span><div><h3>Perform freely</h3><p>Press Space. Count in for 8 beats.<br>Just you, empty lanes, and the beat.</p></div></div><div class="workflow-step"><span class="step-number">02 —</span><div><h3>Make it precise</h3><p>Automatic 1/32 quantization.<br>A full editor for the finer details.</p></div></div><div class="workflow-step"><span class="step-number">03 —</span><div><h3>Get into the flow</h3><p>Play your creation. Find your limits.<br>Refine it, then go again.</p></div></div></section>`,
       "Your charts",
     );
     $("#search").oninput = renderRows;
@@ -147,7 +156,7 @@
               `<article class="chart-row glass" data-chart="${c.id}" data-action="detail" tabindex="0" aria-label="Open ${E(c.name)}"><div class="chart-identity"><div class="chart-icon">${c.keyCount}K</div><div><h3>${E(c.name)}</h3><div class="chart-meta"><span>${c.bpm} BPM</span><b>·</b><span>${c.notes.length} notes</span><b>·</b><span>${T(CF.duration(c))}</span></div></div></div>${CF.ui.density(c)}<span class="edited">${CF.ui.ago(c.updatedAt)}</span><div class="row-actions">${button("▷ Play", "play", "small play")}${button("Edit", "edit", "small ghost")}${button("···", "menu", "icon ghost", 'aria-label="Chart options"')}</div></article>`,
           )
           .join("")
-      : `<div class="empty-state glass"><h2>${search ? "No matching charts" : "Your first rhythm starts here"}</h2><p>${search ? "Try another name." : "Create a chart, press a lane key, and follow your instinct."}</p>${search ? "" : button("＋ Create your first chart", "new", "primary")}</div>`;
+      : `<div class="empty-state glass"><h2>${search ? "No matching charts" : "Your first rhythm starts here"}</h2><p>${search ? "Try another name." : "Create a chart, press Space, and follow the 8-beat count-in."}</p>${search ? "" : button("＋ Create your first chart", "new", "primary")}</div>`;
     $("#library-count").textContent =
       `${charts.length} chart${charts.length === 1 ? "" : "s"}${app.charts.some((c) => c.demo) ? " · Includes starter patterns" : ""}`;
   }
@@ -155,7 +164,7 @@
     setScreen(
       "setup",
       `<button class="back-link" data-action="library">← Back to library</button>${header("A new rhythm starts here.", "Set the tempo. Check your keys. The rest is yours.", "", "CREATE / SETUP")}
-  <div class="setup-layout"><form id="setup-form" class="glass form-panel"><div class="section-kicker">01 / CHART DETAILS</div><label class="field">Chart name<input name="name" value="Untitled" maxlength="120" required></label><div class="field"><span>Key mode</span><div class="segmented" id="key-modes">${[4, 5, 6, 7, 8].map((k) => `<button type="button" data-keys="${k}" class="${k === 4 ? "selected" : ""}">${k}K <small> / ${k} lanes</small></button>`).join("")}</div></div><div class="field-row"><label class="field">Tempo · BPM<input name="bpm" type="number" min="20" max="500" step="1" value="180" required><small>One steady tempo for your entire chart.</small></label><label class="field">Scroll speed<input name="speed" type="number" min="1" max="25" step="0.1" value="15.0" required><small>Changes note travel speed during play.</small></label></div><div class="flow-line"></div><div class="create-paths"><button class="create-path" type="submit" name="creation" value="record"><strong>● Record a performance <span>→</span></strong><small>Play your pattern. Timing starts on your first key.</small></button><button class="create-path" type="submit" name="creation" value="blank"><strong>＋ Build from scratch <span>→</span></strong><small>Start with an empty editor. Place notes on your BPM grid.</small></button></div></form><aside class="glass setup-help"><div class="section-kicker">02 / KEY CHECK</div><h3>Meet your instrument.</h3><p>Press your lane keys together. Each key should light independently, including full chords.</p><div class="key-test" id="key-test"></div><p id="key-readout" style="text-align:center;font-size:11px" aria-live="polite">Detected 0 keys · Peak 0</p><p style="margin-top:8px;font-size:10px">Hold all lane keys together. This shows the keys your keyboard sends to the browser. If some stay dark, try another binding combination in Settings.</p><div class="hint-panel"><h3>Room for the rhythm.</h3><p>You'll see empty lanes while recording. Only the receptors respond to your performance.</p><div class="hint"><span>Pause / resume</span><kbd>P</kbd></div><div class="hint"><span>Finish & quantize</span><kbd>Enter</kbd></div><div class="hint"><span>Back / cancel</span><kbd>Esc</kbd></div></div></aside></div>`,
+  <div class="setup-layout"><form id="setup-form" class="glass form-panel"><div class="section-kicker">01 / CHART DETAILS</div><label class="field">Chart name<input name="name" value="Untitled" maxlength="120" required></label><div class="field"><span>Key mode</span><div class="segmented" id="key-modes">${[4, 5, 6, 7, 8].map((k) => `<button type="button" data-keys="${k}" class="${k === 4 ? "selected" : ""}">${k}K <small> / ${k} lanes</small></button>`).join("")}</div></div><div class="field-row"><label class="field">Tempo · BPM<input name="bpm" type="number" min="20" max="500" step="1" value="180" required><small>One steady tempo for your entire chart.</small></label><label class="field">Scroll speed<input name="speed" type="number" min="1" max="25" step="0.1" value="15.0" required><small>Changes note travel speed during play.</small></label></div><div class="flow-line"></div><div class="create-paths"><button class="create-path" type="submit" name="creation" value="record"><strong>● Record a performance <span>→</span></strong><small>Press Space. Recording starts after an 8-beat count-in.</small></button><button class="create-path" type="submit" name="creation" value="blank"><strong>＋ Build from scratch <span>→</span></strong><small>Start with an empty editor. Place notes on your BPM grid.</small></button></div></form><aside class="glass setup-help"><div class="section-kicker">02 / KEY CHECK</div><h3>Meet your instrument.</h3><p>Press your lane keys together. Each key should light independently, including full chords.</p><div class="key-test" id="key-test"></div><p id="key-readout" style="text-align:center;font-size:11px" aria-live="polite">Detected 0 keys · Peak 0</p><p style="margin-top:8px;font-size:10px">Hold all lane keys together. This shows the keys your keyboard sends to the browser. If some stay dark, try another binding combination in Settings.</p><div class="hint-panel"><h3>Room for the rhythm.</h3><p>You'll see empty lanes while recording. Only the receptors respond to your performance.</p><div class="hint"><span>Start 8-beat count-in</span><kbd>Space</kbd></div><div class="hint"><span>Pause / resume</span><kbd>P</kbd></div><div class="hint"><span>Finish & quantize</span><kbd>Enter</kbd></div><div class="hint"><span>Back / cancel</span><kbd>Esc</kbd></div></div></aside></div>`,
       "New chart",
     );
     app.setupKeys = 4;
@@ -273,7 +282,7 @@
   function stageHTML(mode) {
     const c = app.current,
       rec = mode === "record";
-    return `<div class="page-heading editor-heading"><div><div class="eyebrow">${rec ? "CAPTURE / LIVE PERFORMANCE" : app.testing ? "EDITOR / TEST SESSION" : "PLAY / FIND YOUR FLOW"}</div><h1>${E(c.name)}</h1></div><div class="actions">${rec ? "" : speedControl()}${button("← " + (app.testing ? "Back to editor" : "Back"), "back")}${button("Ⅱ Pause", "pause", "", 'id="pause-button"')}${rec ? button("Finish ↵", "finish", "primary", 'disabled title="Start recording with a lane key first."') : ""}</div></div><div class="stage-layout"><aside class="stage-side"><div class="section-kicker">${rec ? "THE EMPTY INSTRUMENT" : "YOUR PERFORMANCE"}</div><h2>${c.keyCount} lanes.<br>One flow.</h2><p>${rec ? "Let your hands find the pattern.<br>Nothing falls. Everything listens." : "Follow the notes to the line.<br>Every note is a new beginning."}</p><div class="stage-status" id="stage-status"><i class="led"></i>${rec ? "READY" : "COUNT IN"}</div><div class="live-time" id="live-time">00:00.000</div><div class="stat"><strong>${c.bpm}<small>BPM</small></strong></div><div class="beat-display" id="beats">${[1, 2, 3, 4].map((n) => `<span>${n}</span>`).join("")}</div></aside><div class="stage"><canvas id="stage-canvas" aria-label="${rec ? "Empty recording lanes" : "Falling-note playfield"}"></canvas><div class="stage-overlay" id="stage-overlay"><h2>${rec ? "READY" : ""}</h2><p>${rec ? "Press any lane key to begin" : "Find your position"}</p></div></div><aside class="stage-side"><div class="section-kicker">${rec ? "LIVE SESSION" : "SESSION STATS"}</div><div class="stat"><strong id="stat-main">0</strong><small>${rec ? "Inputs captured" : "Combo"}</small></div><div class="stat"><strong id="stat-secondary">${rec ? "1/32" : "100.00%"}</strong><small>${rec ? "Finish quantization" : "Accuracy"}</small></div>${rec ? '<div class="hint-panel"><p>Raw timing is always preserved.<br><br>Pause whenever you need.<br>A four-step count-in brings you back.</p></div>' : '<div class="judgements" id="judgements"></div>'}</aside></div><div class="stage-hints"><span><kbd>P</kbd> Pause / resume</span><span>${rec ? "<kbd>Enter</kbd> Finish recording" : "Hit notes at the line"}</span><span><kbd>Esc</kbd> Back</span></div>`;
+    return `<div class="page-heading editor-heading"><div><div class="eyebrow">${rec ? "CAPTURE / LIVE PERFORMANCE" : app.testing ? "EDITOR / TEST SESSION" : "PLAY / FIND YOUR FLOW"}</div><h1>${E(c.name)}</h1></div><div class="actions">${rec ? "" : speedControl()}${button("← " + (app.testing ? "Back to editor" : "Back"), "back")}${rec ? "" : button("↻ Restart", "restart", "", 'title="Restart (R)"')}${button("Ⅱ Pause", "pause", "", 'id="pause-button"')}${rec ? button("Finish ↵", "finish", "primary", 'disabled title="Press Space, then play notes after the 8-beat count-in."') : ""}</div></div><div class="stage-layout"><aside class="stage-side"><div class="section-kicker">${rec ? "THE EMPTY INSTRUMENT" : "YOUR PERFORMANCE"}</div><h2>${c.keyCount} lanes.<br>One flow.</h2><p>${rec ? "Let your hands find the pattern.<br>Nothing falls. Everything listens." : "Follow the notes to the line.<br>Every note is a new beginning."}</p><div class="stage-status" id="stage-status"><i class="led"></i>${rec ? "READY" : "COUNT IN"}</div><div class="live-time" id="live-time">00:00.000</div><div class="stat"><strong>${c.bpm}<small>BPM</small></strong></div><div class="beat-display" id="beats">${[1, 2, 3, 4].map((n) => `<span>${n}</span>`).join("")}</div></aside><div class="stage"><canvas id="stage-canvas" aria-label="${rec ? "Empty recording lanes" : "Falling-note playfield"}"></canvas><div class="stage-overlay" id="stage-overlay"><h2>${rec ? "READY" : ""}</h2><p>${rec ? "Press Space for an 8-beat count-in" : "Find your position"}</p></div></div><aside class="stage-side"><div class="section-kicker">${rec ? "LIVE SESSION" : "SESSION STATS"}</div><div class="stat"><strong id="stat-main">0</strong><small>${rec ? "Inputs captured" : "Combo"}</small></div><div class="stat"><strong id="stat-secondary">${rec ? "1/32" : "100.00%"}</strong><small>${rec ? "Finish quantization" : "Accuracy"}</small></div>${rec ? '<div class="hint-panel"><p>Raw timing is always preserved.<br><br>Pause whenever you need.<br>A four-step count-in brings you back.</p></div>' : '<div class="judgements" id="judgements"></div>'}</aside></div><div class="stage-hints">${rec ? "<span><kbd>Space</kbd> Start 8-beat count-in</span>" : ""}<span><kbd>P</kbd> Pause / resume</span><span>${rec ? "<kbd>Enter</kbd> Finish recording" : "<kbd>R</kbd> Restart"}</span><span><kbd>Esc</kbd> Back</span></div>`;
   }
   function record() {
     app.audio.unlock();
@@ -293,7 +302,7 @@
     s.countStart =
       performance.now() + (app.state === "play" && !resuming ? 1000 : 0);
     s.countBeat =
-      app.state === "play" ? 650 : resuming ? 60000 / app.current.bpm : 700;
+      app.state === "play" ? 600 : 60000 / app.current.bpm;
     s.countBeats = beats;
     s.countUntil = s.countStart + s.countBeat * beats;
     s.lastCount = -1;
@@ -341,6 +350,13 @@
     bindSpeed();
     countIn(3);
   }
+  function restart() {
+    if (app.state !== "play") return;
+    const fromTick = app.session.startTick;
+    app.audio.stop();
+    app.pressed.clear();
+    play(fromTick, app.testing);
+  }
   function pause() {
     const s = app.session;
     if (!s) return;
@@ -350,7 +366,7 @@
       s.phase = "paused";
       app.audio.stop();
     } else if (s.phase === "paused")
-      countIn(app.state === "record" ? 4 : 3, true);
+      countIn(app.state === "record" ? (s.started ? 4 : 8) : 3, true);
     app.pressed.clear();
     updateStage();
   }
@@ -361,10 +377,9 @@
       sub = "";
     if (s.phase === "ready") {
       title = "READY";
-      sub = "Press any lane key to begin";
+      sub = "Press Space for an 8-beat count-in";
     } else if (s.phase === "paused") {
       title = "PAUSED";
-      sub = "Press P when you’re ready";
     } else if (s.phase === "countin") {
       const n = Math.min(
         s.countBeats,
@@ -373,13 +388,13 @@
       title =
         performance.now() < s.countStart
           ? ""
-          : app.state === "record"
+          : app.state === "record" && s.started
             ? String(n)
             : String(s.countBeats - n + 1);
-      sub = "Get ready · time is frozen";
+      sub = "Get ready";
     }
     $("#stage-overlay").innerHTML = title
-      ? `<h2>${title}</h2><p>${sub}</p>`
+      ? `<h2>${title}</h2>${sub ? `<p>${sub}</p>` : ""}`
       : "";
     const status = $("#stage-status");
     status.classList.toggle("paused", s.phase === "paused");
@@ -394,7 +409,7 @@
     if (app.state !== "record") return;
     const s = app.session;
     if (!s?.raw.length) {
-      CF.ui.toast("Start recording with a lane key first.");
+      CF.ui.toast("Press Space, wait for the 8-beat count-in, then play some notes before finishing.");
       return;
     }
     s.clock.pause();
@@ -683,7 +698,7 @@
       animated: true,
       dismissOnBackdrop: true,
       className: "settings-dialog",
-      body: `<label class="check-field"><input name="sound" type="checkbox" ${app.settings.sound ? "checked" : ""}> Metronome & feedback sound</label><div class="field settings-volume"><span>Volume</span><div class="settings-volume-row"><input name="volume" type="range" min="0" max="1" step="0.05" value="${app.settings.volume}" aria-label="Volume"><button type="button" class="button small settings-volume-test">Test</button></div></div><div class="section-kicker" style="margin:25px 0 15px">LANE BINDINGS</div>${[4, 5, 6, 7, 8].map((k) => `<div class="settings-mode"><span>${k}K</span><div class="settings-bindings">${app.settings.bindings[k].map((key, i) => `<input name="key-${k}-${i}" value="${E(key)}" maxlength="1" required aria-label="${k}K lane ${i + 1}" pattern="[a-oA-Oq-zQ-Z0-9;]">`).join("")}</div></div>`).join("")}<p style="margin-top:18px;font-size:10px">Use unique letters, numbers, or semicolon in each mode. P, Enter and Escape are reserved. Ctrl / Cmd shortcuts always take priority.</p>`,
+      body: `<label class="check-field"><input name="sound" type="checkbox" ${app.settings.sound ? "checked" : ""}> Metronome & feedback sound</label><div class="field settings-volume"><span>Volume</span><div class="settings-volume-row"><input name="volume" type="range" min="0" max="1" step="0.05" value="${app.settings.volume}" aria-label="Volume"><button type="button" class="button small settings-volume-test">Test</button></div></div><div class="section-kicker" style="margin:25px 0 15px">LANE BINDINGS</div>${[4, 5, 6, 7, 8].map((k) => `<div class="settings-mode"><span>${k}K</span><div class="settings-bindings">${app.settings.bindings[k].map((key, i) => `<input name="key-${k}-${i}" value="${E(key)}" maxlength="1" required aria-label="${k}K lane ${i + 1}" pattern="[a-oA-OqQs-zS-Z0-9;]">`).join("")}</div></div>`).join("")}<p style="margin-top:18px;font-size:10px">Use unique letters, numbers, or semicolon in each mode. Space, P, R, Enter and Escape are reserved. Ctrl / Cmd shortcuts always take priority.</p>`,
       confirm: "Save settings",
       onOpen: (el) => {
         el.querySelector(".settings-volume-test").onclick = () => {
@@ -706,9 +721,9 @@
                 e.preventDefault();
                 return;
               }
-              if (e.key === "p" || e.key === "P") {
+              if (["p", "r"].includes(e.key.toLowerCase())) {
                 e.preventDefault();
-                CF.ui.toast("P is reserved for pause.");
+                CF.ui.toast(`${e.key.toUpperCase()} is reserved for ${e.key.toLowerCase() === "p" ? "pause" : "restart"}.`);
               }
             }),
         );
@@ -781,6 +796,7 @@
     help,
     back,
     pause,
+    restart,
     finish,
     retry: () => play(app.session.startTick, app.testing),
     undo: () => app.editor.undo(),
@@ -879,6 +895,16 @@
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const key = laneKey(e);
+    if (e.code === "Space" && app.state === "record") {
+      e.preventDefault();
+      if (!e.repeat && app.session.phase === "ready") countIn(8);
+      return;
+    }
+    if (key === "r" && app.state === "play") {
+      e.preventDefault();
+      if (!e.repeat) restart();
+      return;
+    }
     if (key === "p") {
       e.preventDefault();
       if (e.repeat) return;
@@ -909,12 +935,6 @@
       now = Math.abs(e.timeStamp - wall) < 10000 ? e.timeStamp : wall;
     s.flashes[lane] = wall;
     if (app.state === "record") {
-      if (s.phase === "ready") {
-        s.clock.start(now);
-        s.phase = "running";
-        app.audio.metronome(s.clock, app.current.bpm);
-        updateStage();
-      }
       if (s.phase === "running") {
         s.raw.push({ lane, timestampMs: s.clock.time(now) });
         const finishButton = $('[data-action="finish"]');
@@ -973,7 +993,7 @@
         const beat = Math.floor((now - s.countStart) / s.countBeat);
         if (beat >= 0 && beat !== s.lastCount) {
           s.lastCount = beat;
-          app.audio.tone(beat === 0 ? 1000 : 650);
+          app.audio.tone(beat === 0 ? 375 : 290, undefined, 0.045, 0.6);
           updateStage();
         }
       }
@@ -1054,13 +1074,14 @@
     }
   }
   function frame(now) {
+    frameHandle = null;
     try {
       if (["record", "play"].includes(app.state)) drawStage(now);
       else if (app.state === "editor") app.editor.draw(app.audio);
     } catch (error) {
       console.error(error);
     }
-    requestAnimationFrame(frame);
+    scheduleFrame();
   }
   function demo(name, keys, bpm, bars, index) {
     const notes = [];
@@ -1121,6 +1142,15 @@
         app.settings.bindings[7] = [...CF.bindings[7]];
         await CF.storage.saveSettings(app.settings);
       }
+      let updatedBindings = false;
+      for (const mode of [4, 5, 6, 7, 8]) {
+        const keys = app.settings.bindings[mode];
+        const index = keys.indexOf("r");
+        if (index < 0) continue;
+        keys[index] = CF.bindings[mode].find((key) => !keys.includes(key));
+        updatedBindings = true;
+      }
+      if (updatedBindings) await CF.storage.saveSettings(app.settings);
     }
     app.audio.enabled = app.settings.sound;
     app.audio.volume = app.settings.volume;
@@ -1190,7 +1220,6 @@
       await CF.storage.open();
       await loadActiveProfile();
       library();
-      requestAnimationFrame(frame);
       await CF.guide.firstVisit();
     } catch (error) {
       document.body.classList.remove("startup-pending");

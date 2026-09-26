@@ -10,6 +10,8 @@ const types = {
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
+  ".ogg": "audio/ogg",
+  ".mp3": "audio/mpeg",
 };
 const server = http.createServer((req, res) => {
   let pathname;

@@ -83,7 +83,7 @@ window.CF = window.CF || {};
       osc.frequency.setValueAtTime(freq, at);
       gain.gain.setValueAtTime(0.0001, at);
       gain.gain.exponentialRampToValueAtTime(
-        Math.max(0.0002, this.volume * 2.16 * volume),
+        Math.max(0.0002, this.volume * 2.16 * volume * 0.5625),
         at + 0.003,
       );
       gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
@@ -95,8 +95,8 @@ window.CF = window.CF || {};
     metronome(clock, bpm) {
       this.stop();
       const beat = 60000 / bpm;
-      // The key handler runs just after the event timestamp. Include beat zero
-      // (or a just-reached beat on resume) instead of rounding past it.
+      // The animation frame may run just after the count-in boundary. Include
+      // beat zero (or a just-reached beat on resume) instead of rounding past it.
       const position = Math.max(0, clock.time()) / beat;
       let next =
         (position - Math.floor(position)) * beat < 20

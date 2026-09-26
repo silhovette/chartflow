@@ -37,12 +37,14 @@ const path = require("node:path");
   await page.keyboard.up("d");
   await page.keyboard.up("j");
   await page.locator('[value="record"]').click();
-  assert.equal(await page.evaluate(() => CF.app.session.phase), "ready");
+  await page.keyboard.press("Space");
+  await page.waitForFunction(() => CF.app.session.phase === "running");
+  assert.equal(await page.evaluate(() => CF.app.session.phase), "running");
   await page.keyboard.down("d");
   await page.keyboard.down("j");
   await page.keyboard.up("d");
   await page.keyboard.up("j");
-  assert.equal(await page.evaluate(() => CF.app.session.raw[0].timestampMs), 0);
+  assert.ok(await page.evaluate(() => CF.app.session.raw[0].timestampMs > 0));
   await page.waitForTimeout(160);
   await page.keyboard.press("f");
   await page.keyboard.press("p");
@@ -212,7 +214,7 @@ const path = require("node:path");
   );
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: library, setup chords, first-key clock, paused count-in, quantization, editor, autosave/reload, rename, duplicate, export/import, gameplay pause/results, delete, mobile layout.",
+    "PASS: library, setup chords, Space count-in and automatic recording clock, paused count-in, quantization, editor, autosave/reload, rename, duplicate, export/import, gameplay pause/results, delete, mobile layout.",
   );
   await browser.close();
 })().catch((e) => {

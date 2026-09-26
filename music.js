@@ -1,0 +1,143 @@
+"use strict";
+CF.music = {
+  fadeSeconds: 0.6,
+  loopOverlap: 0.8,
+  screen: "loading",
+  ready: false,
+  intro: false,
+  fades: new Map(),
+  wake() {
+    if (this.timer == null) this.timer = setInterval(() => this.tick(), 20);
+  },
+  fade(media, target, seconds = this.fadeSeconds, done) {
+    this.fades.set(media, {
+      from: media.volume, target, start: performance.now(),
+      duration: seconds * 1000, done,
+    });
+    this.wake();
+  },
+  setScreen(screen) {
+    this.screen = screen;
+    this.update();
+  },
+  setIntro(active) {
+    this.intro = active;
+    if (!active) this.ready = true;
+    this.update();
+  },
+  update() {
+    const wanted = this.ready && !this.intro &&
+      !["loading", "error", "setup", "record", "processing", "play", "results", "editor"].includes(this.screen);
+    if (this.wanted === wanted) return;
+    this.wanted = wanted;
+    if (wanted) this.playBackground();
+    else for (const media of this.background || []) {
+      this.fade(media, 0, this.fadeSeconds, () => media.pause());
+    }
+  },
+  async playBackground() {
+    if (!this.wanted || this.starting) return;
+    if (!this.background) {
+      this.background = Array.from({ length: 2 }, (_, index) => {
+        const media = new Audio("audio/background.mp3");
+        media.preload = "auto";
+        media.volume = 0;
+        media.onended = () => {
+          if (this.wanted && this.current === index) this.nextLoop();
+        };
+        return media;
+      });
+      this.current = 0;
+    }
+    this.starting = true;
+    const media = this.background[this.current];
+    if (media.paused) {
+      this.fades.delete(media);
+      media.volume = 0;
+    }
+    try {
+      await media.play();
+      if (this.wanted) this.fade(media, 1);
+      else this.fade(media, 0, this.fadeSeconds, () => media.pause());
+    } catch (error) {
+      if (error.name !== "NotAllowedError" && error.name !== "AbortError")
+        console.warn("Background music could not play:", error);
+    } finally {
+      this.starting = false;
+    }
+  },
+  async nextLoop() {
+    if (this.switching || !this.wanted) return;
+    this.switching = true;
+    const previous = this.background[this.current];
+    const nextIndex = 1 - this.current;
+    const next = this.background[nextIndex];
+    this.fades.delete(next);
+    next.volume = 0;
+    next.currentTime = 0;
+    try {
+      await next.play();
+      if (!this.wanted) {
+        next.pause();
+        return;
+      }
+      this.current = nextIndex;
+      const overlap = Math.max(0.05, Math.min(this.loopOverlap, previous.duration - previous.currentTime));
+      this.fade(previous, 0, overlap, () => previous.pause());
+      this.fade(next, 1, overlap);
+    } catch (error) {
+      if (error.name !== "NotAllowedError" && error.name !== "AbortError")
+        console.warn("Background loop could not start:", error);
+    } finally {
+      this.switching = false;
+    }
+  },
+  watchIntro(media) {
+    this.introMedia = media;
+    this.introEnding = false;
+    this.fade(media, 1);
+  },
+  stopIntro(media) {
+    if (this.introMedia === media) this.introMedia = null;
+    media.onerror = null;
+    this.fade(media, 0, this.fadeSeconds, () => {
+      media.pause();
+      media.removeAttribute("src");
+      media.load();
+    });
+  },
+  tick() {
+    const now = performance.now();
+    for (const [media, fade] of this.fades) {
+      const progress = Math.min(1, (now - fade.start) / fade.duration);
+      const eased = progress * progress * (3 - 2 * progress);
+      media.volume = fade.from + (fade.target - fade.from) * eased;
+      if (progress === 1) {
+        this.fades.delete(media);
+        fade.done?.();
+      }
+    }
+    const intro = this.introMedia;
+    if (intro && !intro.paused && !this.introEnding &&
+        Number.isFinite(intro.duration) && intro.duration - intro.currentTime <= this.fadeSeconds) {
+      this.introEnding = true;
+      this.fade(intro, 0, Math.max(0.01, intro.duration - intro.currentTime));
+    }
+    const media = this.background?.[this.current];
+    if (this.wanted && media && !media.paused &&
+        Number.isFinite(media.duration) && media.duration - media.currentTime <= this.loopOverlap) {
+      this.nextLoop();
+    }
+    if (!this.fades.size && !this.wanted && !this.introMedia) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  },
+};
+// A real interaction can unlock background audio when browser autoplay is blocked.
+for (const event of ["pointerdown", "keydown"]) {
+  document.addEventListener(event, () => {
+    const music = CF.music;
+    if (music.wanted && music.background?.[music.current]?.paused) music.playBackground();
+  });
+}
