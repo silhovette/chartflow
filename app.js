@@ -988,7 +988,7 @@
       }
     }
     if (s.hitEffects)
-      s.hitEffects = s.hitEffects.filter((hit) => now - hit.at < 520);
+      CF.highway.expireHits(s.hitEffects, now);
     const { ctx, w, h, lw, line } = CF.highway.draw(canvas, c, {
       time: t,
       notes: app.state === "play" && s.started ? s.notes : [],

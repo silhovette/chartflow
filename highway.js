@@ -1,6 +1,12 @@
 "use strict";
 // Shared geometry and rendering for gameplay and editor preview.
 CF.highway = {
+  expireHits(hits, now) {
+    let kept = 0;
+    for (let i = 0; i < hits.length; i++)
+      if (now - hits[i].at < 520) hits[kept++] = hits[i];
+    hits.length = kept;
+  },
   reducedMotion:
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false,
   note(ctx, x, y, width, selected = false) {

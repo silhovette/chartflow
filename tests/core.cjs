@@ -24,6 +24,39 @@ vm.runInContext(
   scope,
 );
 const CF = scope.CF;
+test("editor hit lookup matches exhaustive search at note edges and chords", () => {
+  const e = new CF.Editor({ keyCount: 4, bpm: 180, scrollSpeed: 15,
+    notes: Array.from({ length: 12000 }, (_, i) => ({
+      id: String(i), tick: Math.floor(i / 4) * 48, lane: i % 4,
+    })),
+  }, () => {});
+  e.left = 55;
+  e.laneWidth = 100;
+  e.line = 600;
+  for (const zoom of [0.25, 1, 4]) {
+    e.zoom = zoom;
+    e.offset = 70000;
+    for (let y = -10; y <= 620; y += 4) {
+      for (const x of [55, 62, 63, 148, 155, 200, 350, 454]) {
+        const expected = e.notes.find((n) =>
+          Math.abs(e.yAt(n.tick) - y) < 8 &&
+          x > e.left + n.lane * e.laneWidth + 7 &&
+          x < e.left + (n.lane + 1) * e.laneWidth - 7);
+        assert.equal(e.hit({ x, y }), expected);
+      }
+    }
+  }
+});
+test("editing prunes deleted selections while undo and redo preserve valid selections", () => {
+  const e = editor();
+  e.selected = new Set(["a", "b", "missing"]);
+  e.commit(e.notes.filter((n) => n.id !== "a"));
+  assert.deepEqual([...e.selected], ["b"]);
+  e.undo();
+  assert.deepEqual([...e.selected], ["b"]);
+  e.redo();
+  assert.deepEqual([...e.selected], ["b"]);
+});
 test("editor musical time increases upward and arrow movement follows the screen", () => {
   const e = new CF.Editor(
     {

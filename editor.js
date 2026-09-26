@@ -78,12 +78,23 @@ CF.Editor = class {
     );
   }
   hit(p) {
-    return this.notes.find(
-      (n) =>
-        Math.abs(this.yAt(n.tick) - p.y) < 8 &&
+    for (let i = this.firstAtY(this.notes, p.y + 8); i < this.notes.length; i++) {
+      const n = this.notes[i], y = this.yAt(n.tick);
+      if (y <= p.y - 8) break;
+      if (Math.abs(y - p.y) < 8 &&
         p.x > this.left + n.lane * this.laneWidth + 7 &&
-        p.x < this.left + (n.lane + 1) * this.laneWidth - 7,
-    );
+        p.x < this.left + (n.lane + 1) * this.laneWidth - 7)
+        return n;
+    }
+  }
+  firstAtY(notes, y, dt = 0) {
+    let low = 0, high = notes.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (this.yAt(notes[mid].tick + dt) > y) low = mid + 1;
+      else high = mid;
+    }
+    return low;
   }
   snapshot() {
     return this.notes.map((n) => ({ ...n }));
@@ -111,9 +122,12 @@ CF.Editor = class {
     return true;
   }
   changed() {
-    this.selected = new Set(
-      [...this.selected].filter((id) => this.notes.some((n) => n.id === id)),
-    );
+    if (this.selected.size) {
+      const ids = new Set();
+      for (const n of this.notes)
+        if (this.selected.has(n.id)) ids.add(n.id);
+      this.selected = new Set([...this.selected].filter((id) => ids.has(id)));
+    }
     this.onChange(this.chart);
     this.updateUI();
   }
@@ -377,10 +391,7 @@ CF.Editor = class {
     this.dirty = true;
     const $ = (s) => document.querySelector(s);
     if (!$("#editor-time")) return;
-    $("#editor-time").textContent = CF.ui.time(
-      CF.toMs(this.cursor, this.chart.bpm),
-      true,
-    );
+    this.updateTime();
     $("#editor-zoom").textContent = `${Math.round(this.zoom * 100)}%`;
     $("#selection-count").textContent = `${this.selected.size} selected`;
     $("#editor-note-count").textContent = `${this.notes.length} notes`;
@@ -402,6 +413,12 @@ CF.Editor = class {
       });
     $("#delete-notes").disabled = this.preview || !this.selected.size;
     $("#resnap").disabled = this.preview || !this.selected.size;
+  }
+  updateTime() {
+    const el = document.querySelector("#editor-time");
+    if (!el) return;
+    const text = CF.ui.time(CF.toMs(this.cursor, this.chart.bpm), true);
+    if (el.textContent !== text) el.textContent = text;
   }
   draw(audio) {
     if (!this.canvas?.isConnected) return;
@@ -480,18 +497,14 @@ CF.Editor = class {
     }
     const display = this.preview ? this.previewNotes : this.notes;
     const moving = this.drag?.type === "notes";
-    let first = 0;
-    if (!moving) {
-      let end = display.length;
-      while (first < end) {
-        const mid = (first + end) >>> 1;
-        if (this.yAt(display[mid].tick) > this.line + 9) first = mid + 1;
-        else end = mid;
-      }
-    }
+    // Include both the stationary and shifted intervals, retaining paint order.
+    const dt = moving ? this.drag.dt : 0;
+    let first = this.firstAtY(display, this.line + 9);
+    if (dt) first = Math.min(first, this.firstAtY(display, this.line + 9, dt));
     for (let i = first; i < display.length; i++) {
       const n = display[i];
-      if (!moving && this.yAt(n.tick) < this.top - 10) break;
+      if (this.yAt(n.tick) < this.top - 10 &&
+          (!dt || this.yAt(n.tick + dt) < this.top - 10)) break;
       if (this.preview && n.judged) continue;
       const selected = this.selected.has(n.id);
       const y = this.yAt(n.tick + (moving && selected ? this.drag.dt : 0));
@@ -600,9 +613,10 @@ CF.Editor = class {
       if (time > this.previewEnd + 600) {
         this.clock.pause();
         this.playing = false;
+        this.updateUI();
       }
     }
-    this.previewHits = this.previewHits.filter((hit) => now - hit.at < 520);
-    this.updateUI();
+    CF.highway.expireHits(this.previewHits, now);
+    this.updateTime();
   }
 };
