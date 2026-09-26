@@ -107,7 +107,7 @@ The app runs without external requests, CDNs, font downloads, or a build step. I
 Run the unit tests with Node.js:
 
 ```sh
-node --test tests/core.cjs tests/progress.cjs
+node --test tests/core.cjs tests/progress.cjs tests/editor-history.cjs
 ```
 
 Browser tests use Playwright and Microsoft Edge. Make `playwright` available to Node.js, start the local server, and run:
@@ -118,6 +118,7 @@ node tests/interactions.cjs
 node tests/playback-updates.cjs
 node tests/blank-editor.cjs
 node tests/accounts.cjs
+node tests/performance.cjs
 ```
 
 Set `BROWSER_CHANNEL` to select another installed Playwright browser channel. Tests use isolated browser contexts.

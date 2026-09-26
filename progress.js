@@ -79,6 +79,7 @@ CF.progress = {
     ],
   ],
   pending: Promise.resolve(),
+  queued: new Map(),
   use(profile) {
     this.profile = profile;
     profile.stats ||= {};
@@ -103,11 +104,18 @@ CF.progress = {
     );
   },
   avatarSource(value) {
-    if (typeof value !== "string") return "";
+    if (typeof value !== "string") {
+      this.checkedAvatar = this.checkedAvatarSource = undefined;
+      return "";
+    }
+    if (this.checkedAvatar === value) return this.checkedAvatarSource;
     const limit = value.startsWith("data:image/gif;base64,")
       ? 22 + 4 * Math.ceil(5 * 1024 * 1024 / 3) : 1024 * 1024;
-    return value.length <= limit &&
+    const source = value.length <= limit &&
       /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(value) ? value : "";
+    this.checkedAvatar = source ? value : undefined;
+    this.checkedAvatarSource = source;
+    return source;
   },
   avatarMarkup(profile) {
     const src = this.avatarSource(profile.avatar);
@@ -127,12 +135,25 @@ CF.progress = {
         p.unlocked[id] = Date.now();
         earned.push(name);
       }
-    const snapshot = structuredClone(p);
+    // Completed sessions and their history arrays are immutable. Edits only
+    // change stats, so share history and the potentially multi-MB avatar.
+    const snapshot = {
+      ...structuredClone({ ...p, avatar: undefined, history: undefined }),
+      avatar: p.avatar, history: p.history,
+    };
     this.updateBadge();
-    this.pending = this.pending
-      .catch(() => {})
-      .then(() => CF.storage.saveProfile(snapshot));
-    this.pending
+    let entry = this.queued.get(p.id);
+    if (entry) entry.snapshot = snapshot;
+    else {
+      entry = { snapshot };
+      this.queued.set(p.id, entry);
+      entry.promise = this.pending.catch(() => {}).then(() => {
+        this.queued.delete(p.id);
+        return CF.storage.saveProfile(entry.snapshot);
+      });
+      this.pending = entry.promise;
+    }
+    entry.promise
       .then(() => {
         if (earned.length)
           CF.ui.toast("Achievement unlocked · " + earned.join(" · "));
@@ -140,7 +161,7 @@ CF.progress = {
       .catch(() =>
         CF.ui.toast("Progress could not be saved. Try exporting your save."),
       );
-    return this.pending;
+    return entry.promise;
   },
   complete(chart, session, accuracy, grade, testing) {
     if (
@@ -166,7 +187,7 @@ CF.progress = {
       if (chart.keyCount === 8 && accuracy >= 80)
         s.eightKey = (s.eightKey || 0) + 1;
     }
-    p.history.unshift({
+    p.history = [{
       id: CF.id(),
       chartId: chart.id,
       name: chart.name,
@@ -178,8 +199,7 @@ CF.progress = {
       notes: n,
       counts: { ...session.counts },
       at: Date.now(),
-    });
-    p.history = p.history.slice(0, 200);
+    }, ...p.history.slice(0, 199)];
     this.save();
   },
   async flush() {

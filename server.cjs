@@ -31,16 +31,21 @@ const server = http.createServer((req, res) => {
     res.writeHead(403).end();
     return;
   }
-  fs.readFile(file, (err, data) => {
-    if (err) {
+  fs.stat(file, (err, stat) => {
+    if (err || !stat.isFile()) {
       res.writeHead(404).end("Not found");
       return;
     }
     res.writeHead(200, {
       "Content-Type": types[path.extname(file)] || "application/octet-stream",
       "Cache-Control": "no-cache",
+      "Content-Length": stat.size,
     });
-    res.end(data);
+    if (req.method === "HEAD") return res.end();
+    const stream = fs.createReadStream(file);
+    stream.on("error", () => res.destroy());
+    res.on("close", () => stream.destroy());
+    stream.pipe(res);
   });
 });
 server.listen(Number(process.env.PORT) || 4173, "127.0.0.1", () =>

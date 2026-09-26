@@ -62,6 +62,8 @@ CF.guide = {
     const seen = await CF.storage.request("settings", "readonly", (s) =>
       s.get("guideSeen"),
     );
+    // Keep the startup cover black before starting both the intro and its audio.
+    await new Promise((resolve) => setTimeout(resolve, 500));
     this.open({ introOnly: !!seen, showIntro: true });
   },
   open({ introOnly = false, showIntro = introOnly } = {}) {
@@ -322,6 +324,11 @@ CF.guide = {
       await this.motion(this.dialog, [{ opacity }, { opacity: 0 }], 380);
     }
     this.dialog.close();
+    // Closed guides no longer need a full-screen backing bitmap or animation.
+    if (this.intro) this.intro.canvas.width = this.intro.canvas.height = 0;
+    this.intro = null;
+    this.transition = null;
+    this.dialog.replaceChildren();
     CF.music.setIntro(false);
     document.body.classList.remove("guide-open");
     delete this.dialog.dataset.state;

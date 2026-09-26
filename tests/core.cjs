@@ -24,6 +24,51 @@ vm.runInContext(
   scope,
 );
 const CF = scope.CF;
+test("history restores every edit exactly without changing earlier note states", () => {
+  const e = editor(), states = [JSON.stringify(e.notes)];
+  const edit = (action) => { action(); states.push(JSON.stringify(e.notes)); };
+  e.selected = new Set(["a"]);
+  edit(() => e.shift(48, 1));
+  edit(() => e.resnap());
+  edit(() => { e.copy(); e.cursor = 768; e.cursorLane = 0; e.paste(); });
+  edit(() => e.remove());
+  edit(() => { e.cursor = 1536; e.add(); });
+  for (let i = states.length - 2; i >= 0; i--) {
+    e.undo();
+    assert.equal(JSON.stringify(e.notes), states[i]);
+  }
+  for (let i = 1; i < states.length; i++) {
+    e.redo();
+    assert.equal(JSON.stringify(e.notes), states[i]);
+  }
+});
+test("marquee interval lookup preserves inclusive edges, chords and initial selection", () => {
+  const e = new CF.Editor({ keyCount: 8, scrollSpeed: 15,
+    notes: Array.from({ length: 10000 }, (_, i) => ({
+      id: String(i), tick: Math.floor(i / 8) * 48, lane: i % 8,
+    })),
+  }, () => {});
+  e.left = 55; e.line = 600; e.laneWidth = 80;
+  e.point = (p) => p;
+  for (const zoom of [0.25, 1, 4]) {
+    e.zoom = zoom; e.offset = 24000;
+    for (const [p, end] of [
+      [{ x: 95, y: 600 }, { x: 655, y: 100 }],
+      [{ x: 655, y: 100 }, { x: 95, y: 600 }],
+      [{ x: 95, y: -100 }, { x: 255, y: -50 }],
+    ]) {
+      e.drag = { type: "box", p, initial: new Set(["0"]) };
+      e.move(end);
+      const expected = new Set(["0"]);
+      for (const n of e.notes) {
+        const x = e.left + (n.lane + 0.5) * e.laneWidth, y = e.yAt(n.tick);
+        if (x >= Math.min(p.x, end.x) && x <= Math.max(p.x, end.x) &&
+            y >= Math.min(p.y, end.y) && y <= Math.max(p.y, end.y)) expected.add(n.id);
+      }
+      assert.deepEqual([...e.selected], [...expected]);
+    }
+  }
+});
 test("editor hit lookup matches exhaustive search at note edges and chords", () => {
   const e = new CF.Editor({ keyCount: 4, bpm: 180, scrollSpeed: 15,
     notes: Array.from({ length: 12000 }, (_, i) => ({
@@ -183,4 +228,37 @@ test("import rejects invalid notes and overlapping lanes, creates independent ID
   );
   assert.throws(() => CF.validate({ ...chart, notes: [{ lane: 4, tick: 0 }] }));
   assert.throws(() => CF.validate({ ...chart, bpm: 0 }));
+});
+
+test("drag rendering matches exhaustive paint order across separated visible intervals", () => {
+  const originalUI = CF.ui, originalApp = CF.app, originalHighway = CF.highway;
+  const drawn = [];
+  const ctx = new Proxy({}, { get: () => () => {}, set: () => true });
+  CF.ui = { fit: () => ({ ctx, w: 900, h: 700 }) };
+  CF.app = { settings: { bindings: { 4: ["d", "f", "j", "k"] } } };
+  CF.highway = { note: (ctx, x, y, width, selected) => drawn.push([x, y, selected]) };
+  scope.devicePixelRatio = 1;
+  try {
+    const e = new CF.Editor({ keyCount: 4, scrollSpeed: 15,
+      notes: Array.from({ length: 20000 }, (_, i) => ({
+        id: String(i), tick: Math.floor(i / 4) * 48, lane: i % 4,
+      })),
+    }, () => {});
+    e.canvas = { isConnected: true };
+    e.offset = 80000;
+    e.selected = new Set(e.notes.filter((_, i) => i % 3 === 0).map(n => n.id));
+    for (const dt of [-200000, -30000, -48, 0, 48, 30000, 200000]) {
+      e.drag = { type: "notes", dt, dl: 0 };
+      e.dirty = true;
+      drawn.length = 0;
+      e.draw();
+      const expected = [];
+      for (const n of e.notes) {
+        const selected = e.selected.has(n.id), y = e.yAt(n.tick + (selected ? dt : 0));
+        if (y >= e.top - 10 && y <= e.line + 9)
+          expected.push([e.left + n.lane * e.laneWidth + 10, y, selected]);
+      }
+      assert.deepEqual(drawn, expected);
+    }
+  } finally { CF.ui = originalUI; CF.app = originalApp; CF.highway = originalHighway; }
 });

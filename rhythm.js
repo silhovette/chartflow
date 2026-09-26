@@ -89,6 +89,10 @@ window.CF = window.CF || {};
       gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
       osc.connect(gain);
       gain.connect(this.ctx.destination);
+      osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+      };
       osc.start(at);
       osc.stop(at + length + 0.01);
     }

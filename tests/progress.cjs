@@ -100,3 +100,35 @@ test("combo milestones unlock at 100 and 500, and precision still starts at 20 n
   assert.ok(p.profile.unlocked["combo-100"]);
   await p.flush();
 });
+
+test("queued progress writes coalesce while preserving snapshots and profile ownership", async () => {
+  const { p, saved } = progress();
+  const first = p.event("edits");
+  const second = p.event("edits");
+  assert.equal(first, second);
+  // Snapshot data stays independent of later mutations that were not saved.
+  p.profile.stats.edits = 99;
+  await p.flush();
+  assert.equal(saved().stats.edits, 2);
+  p.use({ id: "other", name: "Other", stats: {}, unlocked: {}, history: [] });
+  await p.event("created");
+  assert.equal(saved().id, "other");
+  assert.equal(saved().stats.created, 1);
+  assert.equal(saved().stats.edits, undefined);
+});
+
+test("completed sessions leave saved history and judgement counts unchanged", async () => {
+  const { p, saved } = progress();
+  const firstSession = session(100);
+  p.complete(chart, firstSession, 100, "S", false);
+  await p.flush();
+  const first = saved();
+  firstSession.counts.Perfect = 0;
+  for (let i = 0; i < 205; i++) p.complete(chart, session(20), 100, "S", false);
+  await p.flush();
+  assert.equal(first.history.length, 1);
+  assert.equal(first.history[0].counts.Perfect, 100);
+  assert.equal(first.stats.plays, 1);
+  assert.equal(saved().history.length, 200);
+  assert.equal(saved().stats.plays, 206);
+});

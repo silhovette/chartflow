@@ -1065,6 +1065,12 @@ kbd {
 .stage-hints kbd {
   margin-right: 6px;
 }
+@media (min-width: 1201px) {
+  body[data-screen="play"] .stage,
+  body[data-screen="play"] .stage-hints {
+    transform: translateX(-32px);
+  }
+}
 .live-time {
   font:
     24px Consolas,
@@ -1459,8 +1465,18 @@ dialog::backdrop {
   accent-color: var(--cyan);
   cursor: pointer;
 }
-.settings-volume-test {
+.settings-volume-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.settings-volume-heading .settings-volume-test {
   flex: none;
+  padding: 2px 7px;
+  font-size: 10px;
+  line-height: 1.4;
+  border-radius: 5px;
 }
 .settings-dialog .settings-mode {
   margin: 3px 0;
@@ -1923,7 +1939,10 @@ body[data-screen="play"] .stage-layout {
   min-height: 380px;
 }
 body[data-screen="editor"] .editor-workspace {
-  height: calc(100dvh - 285px);
+  height: calc(100dvh - 269px);
+}
+body[data-screen="editor"] .page-heading {
+  margin-bottom: 12px;
 }
 .speed-control {
   display: inline-flex;

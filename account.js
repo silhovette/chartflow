@@ -92,8 +92,10 @@ CF.account = {
     const E = CF.ui.escape,
       p = CF.progress.profile,
       s = p.stats,
-      profiles = await CF.storage.profiles(),
-      slots = await CF.storage.slots();
+      [profiles, slots] = await Promise.all([
+        CF.storage.profileOptions(),
+        panel === "saves" ? CF.storage.slotSummaries() : [],
+      ]);
     const unlocked = CF.progress.catalogue.filter(([id]) => p.unlocked[id]).length;
     const button = (label, action, extra = "") =>
       `<button class="button small" data-account="${action}" ${extra}>${label}</button>`;
@@ -115,7 +117,7 @@ CF.account = {
           .sort((a, b) => b.createdAt - a.createdAt)
           .map(
             (slot) =>
-              `<article class="glass save-row"><div><h3>${E(slot.name)}</h3><small>${new Date(slot.createdAt).toLocaleString()} · ${slot.bundle.charts.length} charts · ${slot.bundle.profile.stats.plays || 0} sessions</small></div><div class="actions">${button("Restore", "restore", `data-id="${slot.id}"`)}${button("Delete", "delete-save", `data-id="${slot.id}"`)}</div></article>`,
+              `<article class="glass save-row"><div><h3>${E(slot.name)}</h3><small>${new Date(slot.createdAt).toLocaleString()} · ${slot.charts} charts · ${slot.plays} sessions</small></div><div class="actions">${button("Restore", "restore", `data-id="${slot.id}"`)}${button("Delete", "delete-save", `data-id="${slot.id}"`)}</div></article>`,
           )
           .join("") ||
         '<div class="glass empty-state"><h3>No named saves yet.</h3><p>Create one before experimenting with your charts.</p></div>'
@@ -223,7 +225,7 @@ CF.account = {
     CF.ui.toast("Workspace save created");
   },
   async restore(id) {
-    const slot = (await CF.storage.slots()).find((s) => s.id === id);
+    const slot = await CF.storage.slot(id);
     if (!slot) return;
     const yes = await CF.ui.dialog({
       title: "Restore this save?",
@@ -239,7 +241,7 @@ CF.account = {
     CF.ui.toast("Workspace restored");
   },
   async deleteSave(id) {
-    const slot = (await CF.storage.slots()).find((s) => s.id === id);
+    const slot = await CF.storage.slot(id);
     if (!slot) return;
     const yes = await CF.ui.dialog({
       title: "Delete this save?",

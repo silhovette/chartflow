@@ -14,13 +14,18 @@ CF.music = {
   },
   setVolume(volume) {
     this.volume = volume;
-    const media = new Set([...(this.background || []), ...this.fades.keys(), this.introMedia]);
+    const media = new Set([...(this.background || []), ...this.fades.keys(), this.introMedia, this.previewMedia]);
     for (const track of media) {
       if (track) track.volume = (this.levels.get(track) ?? 0) * volume;
     }
   },
-  wake() {
-    if (this.timer == null) this.timer = setInterval(() => this.tick(), 20);
+  wake(delay = 20) {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.tick(), delay);
+  },
+  watchTiming(media) {
+    for (const event of ["loadedmetadata", "playing", "pause", "seeking", "seeked", "ratechange"])
+      media.addEventListener(event, () => this.wake());
   },
   fade(media, target, seconds = this.fadeSeconds, done) {
     this.fades.set(media, {
@@ -39,8 +44,8 @@ CF.music = {
     this.update();
   },
   update() {
-    const wanted = this.ready && !this.intro && !this.continuingIntro &&
-      !["loading", "error", "setup", "record", "processing", "play", "results", "editor"].includes(this.screen);
+    const wanted = this.ready && !this.intro && !this.continuingIntro && !this.previewMedia &&
+      !["loading", "error", "record", "processing", "play", "results", "editor"].includes(this.screen);
     if (this.wanted === wanted) return;
     this.wanted = wanted;
     if (wanted) this.playBackground();
@@ -48,11 +53,37 @@ CF.music = {
       this.fade(media, 0, this.fadeSeconds, () => media.pause());
     }
   },
+  previewIntro() {
+    let media = this.previewMedia;
+    if (!media) {
+      media = this.previewMedia = new Audio("audio/intro.ogg");
+      media.onended = media.onerror = () => this.stopPreview();
+    }
+    this.setLevel(media, 1);
+    media.currentTime = 0;
+    this.update();
+    media.play().catch((error) => {
+      if (this.previewMedia !== media || error.name === "AbortError") return;
+      this.stopPreview();
+      CF.ui.toast("Music preview could not play.");
+    });
+  },
+  stopPreview() {
+    const media = this.previewMedia;
+    if (!media) return;
+    this.previewMedia = null;
+    media.onended = media.onerror = null;
+    media.pause();
+    media.removeAttribute("src");
+    media.load();
+    this.update();
+  },
   async playBackground() {
     if (!this.wanted || this.starting) return;
     if (!this.background) {
       this.background = Array.from({ length: 2 }, (_, index) => {
         const media = new Audio("audio/background.mp3");
+        this.watchTiming(media);
         media.preload = "auto";
         this.setLevel(media, 0);
         media.onended = () => {
@@ -106,6 +137,7 @@ CF.music = {
     }
   },
   watchIntro(media) {
+    if (this.introMedia !== media) this.watchTiming(media);
     this.introMedia = media;
     this.introEnding = false;
     this.fade(media, 1);
@@ -138,6 +170,7 @@ CF.music = {
     });
   },
   tick() {
+    this.timer = null;
     const now = performance.now();
     for (const [media, fade] of this.fades) {
       const progress = Math.min(1, (now - fade.start) / fade.duration);
@@ -159,10 +192,18 @@ CF.music = {
         Number.isFinite(media.duration) && media.duration - media.currentTime <= this.loopOverlap) {
       this.nextLoop();
     }
-    if (!this.fades.size && !this.wanted && !this.introMedia) {
-      clearInterval(this.timer);
-      this.timer = null;
+    // Keep the existing 20 ms fade steps; steady playback only needs a check
+    // near a fade/loop boundary. Seeking and rate changes wake this immediately.
+    let delay = this.fades.size ? 20 : Infinity;
+    for (const [track, margin] of [[intro, this.fadeSeconds],
+      [this.wanted ? media : null, this.loopOverlap]]) {
+      if (!track || track.paused || track.ended) continue;
+      const remaining = (track.duration - track.currentTime - margin) /
+        (track.playbackRate || 1) * 1000;
+      delay = Math.min(delay, Number.isFinite(remaining)
+        ? Math.max(20, Math.min(1000, remaining)) : 1000);
     }
+    if (Number.isFinite(delay)) this.wake(delay);
   },
 };
 // A real interaction can unlock background audio when browser autoplay is blocked.

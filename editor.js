@@ -48,15 +48,36 @@ CF.Editor = class {
       if (this.preview) return;
       const p = this.point(e);
       if (e.ctrlKey || e.metaKey) {
+        this.scrollTarget = null;
         const anchor = this.tickAt(p.y);
         this.zoom = Math.max(
           0.25,
           Math.min(4, this.zoom * Math.exp(-e.deltaY * 0.002)),
         );
         this.offset = Math.max(0, anchor - (this.line - p.y) / this.scale);
-      } else this.offset = Math.max(0, this.offset + e.deltaY / this.scale);
+      } else {
+        const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? this.canvas.clientHeight : 1);
+        this.scrollTarget = Math.max(0, (this.scrollTarget ?? this.offset) - delta / this.scale);
+        this.scrollTime = performance.now();
+      }
       this.updateUI();
     };
+  }
+  advanceScroll(now) {
+    if (this.scrollTarget == null) return;
+    const elapsed = Math.max(0, now - this.scrollTime);
+    this.scrollTime = now;
+    this.offset += (this.scrollTarget - this.offset) * (1 - Math.exp(-elapsed / 70));
+    if (Math.abs(this.scrollTarget - this.offset) * this.scale < 0.2) {
+      this.offset = this.scrollTarget;
+      this.scrollTarget = null;
+    }
+  }
+  jumpToStart(audio) {
+    this.stop(audio);
+    this.cursor = this.offset = 0;
+    this.clock.seek(0);
+    this.updateUI();
   }
   point(e) {
     const r = this.canvas.getBoundingClientRect();
@@ -87,37 +108,92 @@ CF.Editor = class {
         return n;
     }
   }
-  firstAtY(notes, y, dt = 0) {
+  firstAtY(notes, y, dt = 0, exclusive = false) {
     let low = 0, high = notes.length;
     while (low < high) {
       const mid = (low + high) >>> 1;
-      if (this.yAt(notes[mid].tick + dt) > y) low = mid + 1;
+      const noteY = this.yAt(notes[mid].tick + dt);
+      if (exclusive ? noteY >= y : noteY > y) low = mid + 1;
       else high = mid;
     }
     return low;
   }
-  snapshot() {
-    return this.notes.map((n) => ({ ...n }));
+  history(next) {
+    const before = this.notes, removed = [], added = [];
+    let i = 0, j = 0;
+    // Keep positions only for changed notes. Shared notes form the unchanged
+    // subsequence, including when a move crosses other notes or changes order.
+    while (i < before.length || j < next.length) {
+      if (i < before.length && j < next.length && before[i] === next[j]) {
+        i++; j++;
+      } else if (j === next.length ||
+          (i < before.length && before[i].tick < next[j].tick)) {
+        removed.push(i, before[i++]);
+      } else if (i === before.length || next[j].tick < before[i].tick) {
+        added.push(j, next[j++]);
+      } else {
+        removed.push(i, before[i++]);
+        added.push(j, next[j++]);
+      }
+      // Large edits are cheaper to retain as shared immutable arrays.
+      if (removed.length + added.length >= before.length + next.length)
+        return { before, after: next };
+    }
+    return { removed, added };
+  }
+  restore(entry, reverse) {
+    if (entry.before) return reverse ? entry.before : entry.after;
+    const remove = reverse ? entry.added : entry.removed,
+      insert = reverse ? entry.removed : entry.added,
+      notes = this.notes,
+      next = new Array(notes.length + (insert.length - remove.length) / 2);
+    let source = 0, r = 0, a = 0;
+    for (let target = 0; target < next.length; target++) {
+      if (a < insert.length && insert[a] === target) {
+        next[target] = insert[a + 1];
+        a += 2;
+      } else {
+        while (r < remove.length && remove[r] === source) {
+          source++;
+          r += 2;
+        }
+        next[target] = notes[source++];
+      }
+    }
+    return next;
   }
   commit(next) {
-    const seen = new Set();
+    let sorted = true, previous;
     for (const n of next) {
-      const k = `${n.lane}:${n.tick}`;
       if (
         n.lane < 0 ||
         n.lane >= this.chart.keyCount ||
-        n.tick < 0 ||
-        seen.has(k)
+        n.tick < 0
       ) {
         CF.ui.toast("Move blocked: notes would overlap or leave the grid.");
         return false;
       }
-      seen.add(k);
+      if (previous && (previous.tick > n.tick ||
+          (previous.tick === n.tick && previous.lane > n.lane))) sorted = false;
+      previous = n;
     }
-    if (JSON.stringify(this.notes) === JSON.stringify(next)) return false;
-    this.undoStack.push(this.snapshot());
+    const unchanged = this.notes.length === next.length && this.notes.every((n, i) =>
+      n === next[i] || JSON.stringify(n) === JSON.stringify(next[i]));
+    if (!sorted) {
+      if (next === this.notes) next = next.slice();
+      next.sort((a, b) => a.tick - b.tick || a.lane - b.lane);
+    }
+    // Sorting places collisions next to each other; no full-chart Set needed.
+    for (let i = 1; i < next.length; i++) {
+      if (next[i - 1].tick === next[i].tick && next[i - 1].lane === next[i].lane) {
+        CF.ui.toast("Move blocked: notes would overlap or leave the grid.");
+        return false;
+      }
+    }
+    if (unchanged) return false;
+    this.undoStack.push(this.history(next));
     this.redoStack = [];
-    this.chart.notes = next.sort((a, b) => a.tick - b.tick || a.lane - b.lane);
+    this.chart.notes = next;
     this.changed();
     return true;
   }
@@ -133,14 +209,16 @@ CF.Editor = class {
   }
   undo() {
     if (!this.undoStack.length) return;
-    this.redoStack.push(this.snapshot());
-    this.chart.notes = this.undoStack.pop();
+    const entry = this.undoStack.pop();
+    this.chart.notes = this.restore(entry, true);
+    this.redoStack.push(entry);
     this.changed();
   }
   redo() {
     if (!this.redoStack.length) return;
-    this.undoStack.push(this.snapshot());
-    this.chart.notes = this.redoStack.pop();
+    const entry = this.redoStack.pop();
+    this.chart.notes = this.restore(entry, false);
+    this.undoStack.push(entry);
     this.changed();
   }
   transform(dt, dl) {
@@ -211,6 +289,7 @@ CF.Editor = class {
   down(e) {
     if (this.preview) return;
     if (e.button !== 0) return;
+    this.scrollTarget = null;
     this.canvas.focus();
     const p = this.point(e);
     if (p.y < this.top || p.y > this.line + 6) return;
@@ -277,14 +356,15 @@ CF.Editor = class {
       if (Math.abs(p.x - d.p.x) + Math.abs(p.y - d.p.y) > 4) {
         d.moved = true;
         this.selected = new Set(d.initial);
-        for (const n of this.notes) {
+        const minX = Math.min(p.x, d.p.x), maxX = Math.max(p.x, d.p.x),
+          minY = Math.min(p.y, d.p.y), maxY = Math.max(p.y, d.p.y);
+        for (let i = this.firstAtY(this.notes, maxY); i < this.notes.length; i++) {
+          const n = this.notes[i];
           const x = this.left + (n.lane + 0.5) * this.laneWidth,
             y = this.yAt(n.tick);
+          if (y < minY) break;
           if (
-            x >= Math.min(p.x, d.p.x) &&
-            x <= Math.max(p.x, d.p.x) &&
-            y >= Math.min(p.y, d.p.y) &&
-            y <= Math.max(p.y, d.p.y)
+            x >= minX && x <= maxX && y >= minY && y <= maxY
           )
             this.selected.add(n.id);
         }
@@ -302,6 +382,7 @@ CF.Editor = class {
     this.updateUI();
   }
   toggle(audio) {
+    this.scrollTarget = null;
     if (this.playing) {
       this.clock.pause();
       this.playing = false;
@@ -333,6 +414,7 @@ CF.Editor = class {
     this.updateUI();
   }
   stop(audio) {
+    this.scrollTarget = null;
     if (this.preview) {
       this.clock.pause();
       this.playing = false;
@@ -389,6 +471,7 @@ CF.Editor = class {
   }
   updateUI() {
     this.dirty = true;
+    CF.app?.requestFrame?.();
     const $ = (s) => document.querySelector(s);
     if (!$("#editor-time")) return;
     this.updateTime();
@@ -405,13 +488,12 @@ CF.Editor = class {
     $("#stop-preview").hidden = !this.preview;
     document
       .querySelectorAll(
-        '[data-action="undo"],[data-action="redo"],[data-action="add-note"],[data-action="resnap"],[data-action="delete-notes"],#snap',
+        '[data-action="undo"],[data-action="redo"],[data-action="add-note"],[data-action="resnap"],#snap',
       )
       .forEach((el) => {
         if (this.preview) el.disabled = true;
         else if (el.id !== "undo" && el.id !== "redo") el.disabled = false;
       });
-    $("#delete-notes").disabled = this.preview || !this.selected.size;
     $("#resnap").disabled = this.preview || !this.selected.size;
   }
   updateTime() {
@@ -422,6 +504,7 @@ CF.Editor = class {
   }
   draw(audio) {
     if (!this.canvas?.isConnected) return;
+    this.advanceScroll(performance.now());
     if (this.preview) {
       // Repaint the final frame that clears a fading hit before becoming idle.
       if (this.previewHits.length) this.dirty = true;
@@ -503,12 +586,18 @@ CF.Editor = class {
     const moving = this.drag?.type === "notes";
     // Include both the stationary and shifted intervals, retaining paint order.
     const dt = moving ? this.drag.dt : 0;
-    let first = this.firstAtY(display, this.line + 9);
-    if (dt) first = Math.min(first, this.firstAtY(display, this.line + 9, dt));
-    for (let i = first; i < display.length; i++) {
+    const start = this.firstAtY(display, this.line + 9),
+      end = this.firstAtY(display, this.top - 10, 0, true),
+      shiftedStart = dt ? this.firstAtY(display, this.line + 9, dt) : start,
+      shiftedEnd = dt ? this.firstAtY(display, this.top - 10, dt, true) : end;
+    const first = Math.min(start, shiftedStart), last = Math.max(end, shiftedEnd),
+      gapStart = Math.min(end, shiftedEnd), gapEnd = Math.max(start, shiftedStart);
+    for (let i = first; i < last; i++) {
+      // A long drag can leave thousands of invisible notes between the two
+      // intervals. Jump that gap while preserving the original paint order.
+      if (i >= gapStart && i < gapEnd) i = gapEnd;
+      if (i >= last) break;
       const n = display[i];
-      if (this.yAt(n.tick) < this.top - 10 &&
-          (!dt || this.yAt(n.tick + dt) < this.top - 10)) break;
       if (this.preview && n.judged) continue;
       const selected = this.selected.has(n.id);
       const y = this.yAt(n.tick + (moving && selected ? this.drag.dt : 0));

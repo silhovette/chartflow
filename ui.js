@@ -1,5 +1,47 @@
 "use strict";
 CF.ui = {
+  chartSummaries: new WeakMap(),
+  invalidateChart(chart) {
+    this.chartSummaries.delete(chart);
+  },
+  summary(chart) {
+    let cached = this.chartSummaries.get(chart);
+    if (!cached || cached.notes !== chart.notes || cached.length !== chart.notes.length) {
+      cached = { notes: chart.notes, length: chart.notes.length,
+        end: CF.endTick(chart.notes), densities: [] };
+      this.chartSummaries.set(chart, cached);
+    }
+    return cached;
+  },
+  chartDuration(chart) {
+    return chart.notes.length ? CF.toMs(this.summary(chart).end + CF.PPQN, chart.bpm) : 0;
+  },
+  renderRows(container, rows, emptyHTML) {
+    if (!rows.length) {
+      container.innerHTML = emptyHTML;
+      return;
+    }
+    const existing = new Map([...container.children].map((row) => [row.dataset.chart, row]));
+    let cursor = container.firstElementChild;
+    for (const [id, html] of rows) {
+      let row = existing.get(id);
+      if (row?.renderedHTML !== html) {
+        const template = document.createElement("template");
+        template.innerHTML = html;
+        row = template.content.firstElementChild;
+        row.renderedHTML = html;
+      }
+      if (row !== cursor) container.insertBefore(row, cursor);
+      cursor = row.nextElementSibling;
+    }
+    // Unchanged rows stay attached; discard only rows removed by filtering or
+    // replaced with updated content, without retaining an off-screen DOM cache.
+    while (cursor) {
+      const next = cursor.nextElementSibling;
+      cursor.remove();
+      cursor = next;
+    }
+  },
   escape(value) {
     return String(value).replace(
       /[&<>"']/g,
@@ -33,8 +75,10 @@ CF.ui = {
     this.toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
   },
   density(chart, large = false) {
+    const summary = this.summary(chart), index = large ? 1 : 0;
+    if (summary.densities[index]) return summary.densities[index];
     const bins = Array(large ? 80 : 38).fill(0),
-      end = Math.max(1, CF.endTick(chart.notes));
+      end = Math.max(1, summary.end);
     chart.notes.forEach(
       (n) =>
         bins[
@@ -42,7 +86,7 @@ CF.ui = {
         ]++,
     );
     const max = Math.max(1, ...bins);
-    return `<div class="density ${large ? "large" : ""}" aria-label="Note density overview">${bins.map((n) => `<i style="--h:${Math.max(5, (n / max) * 100)}%"></i>`).join("")}</div>`;
+    return summary.densities[index] = `<div class="density ${large ? "large" : ""}" aria-label="Note density overview">${bins.map((n) => `<i style="--h:${Math.max(5, (n / max) * 100)}%"></i>`).join("")}</div>`;
   },
   async dialog({
     title,

@@ -71,7 +71,8 @@ CF.storage = {
   },
   save(chart) {
     const value = {
-      ...structuredClone(chart),
+      // IndexedDB put() synchronously clones the value before returning.
+      ...chart,
       ownerId: chart.ownerId || this.profileId,
     };
     return this.request("charts", "readwrite", (s) => s.put(value));
@@ -97,8 +98,41 @@ CF.storage = {
   },
   saveProfile(profile) {
     return this.request("profiles", "readwrite", (s) =>
-      s.put(structuredClone(profile)),
+      s.put(profile),
     );
+  },
+  // A cursor releases each full record after projecting the fields needed by
+  // the list, rather than retaining every avatar or workspace snapshot at once.
+  summaries(store, project, ownerId) {
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(store, "readonly"),
+        source = tx.objectStore(store), rows = [];
+      const request = ownerId === undefined ? source.openCursor() :
+        source.index("ownerId").openCursor(IDBKeyRange.only(ownerId));
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+        rows.push(project(cursor.value));
+        cursor.continue();
+      };
+      tx.oncomplete = () => resolve(rows);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error("Storage read interrupted."));
+    });
+  },
+  profileOptions() {
+    return this.summaries("profiles", (p) => ({ id: p.id, name: p.name }));
+  },
+  slotSummaries() {
+    return this.summaries("saves", (s) => ({
+      id: s.id, name: s.name, createdAt: s.createdAt,
+      charts: s.bundle.charts.length, plays: s.bundle.profile.stats.plays || 0,
+    }), this.profileId);
+  },
+  async slot(id) {
+    const ownerId = this.profileId;
+    const slot = await this.request("saves", "readonly", (s) => s.get(id));
+    return slot?.ownerId === ownerId ? slot : undefined;
   },
   async activate(id) {
     const p = await this.request("profiles", "readonly", (s) => s.get(id));

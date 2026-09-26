@@ -64,9 +64,14 @@ CF.GuideIntro = class {
     const shift = (-(titleWidth + gap) / 2) * reveal;
     // Both start together; the title takes longer to settle, opening up the gap.
     const titleShift = (-(titleWidth + gap) / 2) * titleTravel;
-    this.title.style.opacity = String(reveal);
-    this.title.style.transform = `translate(-50%,-50%) translateX(${titleShift + logoWidth / 2 + gap + titleWidth / 2}px)`;
-    this.title.style.clipPath = "none";
+    const opacityText = String(reveal);
+    const transform = `translate(-50%,-50%) translateX(${titleShift + logoWidth / 2 + gap + titleWidth / 2}px)`;
+    if (this.title.style.opacity !== opacityText) this.title.style.opacity = opacityText;
+    if (this.titleTransform !== transform) {
+      this.title.style.transform = transform;
+      this.titleTransform = transform;
+    }
+    if (this.title.style.clipPath !== "none") this.title.style.clipPath = "none";
     const flowTime = t * 1.12;
     const face = this.ease((t - 2.15) / 2.1);
     const roll = 0.12 * Math.sin(flowTime * 0.6) * (1 - face);
@@ -74,50 +79,61 @@ CF.GuideIntro = class {
     const size = scale * Math.pow(logoWidth / (440 * scale), morph);
     const cosRoll = Math.cos(roll), sinRoll = Math.sin(roll);
     const cosPitch = Math.cos(pitch), sinPitch = Math.sin(pitch);
-    for (let strand = 0; strand < 3; strand++) {
-      const ribbon = this.ribbons[strand];
-      ribbon.z = 0;
-      let previous;
-      const phase = (strand * Math.PI * 2) / 3;
-      const uncoil = this.ease((t - 1.95 - strand * 0.06) / 2.2);
-      const breath = uncoil * (1 - this.ease((t - 2.6) / 1.65));
-      const yaw = 0.12 * Math.sin((t - 1.95) * 0.8) * uncoil * (1 - face);
-      const cosYaw = Math.cos(yaw), sinYaw = Math.sin(yaw);
-      for (let i = 0; i <= 110; i++) {
-        const u = i / 110,
-          a = (u - 0.5) * Math.PI * 2;
-        // Keep horizontal travel monotonic so the ribbons cannot fold into knots.
-        // Uncoil in 3D before turning toward
-        // the camera; sizing and depth settle later than the wave shape.
-        const xDance = (u - 0.5) * 440;
-        const yDance =
-          (strand - 1) * 38 +
-          82 * Math.sin(a * 0.72 - flowTime * 0.8 + phase * 0.7);
-        const xWave = (u - 0.5) * 440;
-        const yWave =
-          (((strand - 1) * 17 - 8 * Math.sin(a) - 10 * (u - 0.5)) * 440) / 72;
-        const x = xDance * (1 - uncoil) + xWave * uncoil;
-        const y =
-          yDance * (1 - uncoil) +
-          yWave * uncoil +
-          9 * Math.sin(a * 0.65 - flowTime * 1.1 + phase) * breath;
-        const z = 72 * Math.cos(a * 0.65 + flowTime * 0.6 + phase) * (1 - face);
-        const xx = x * cosYaw + z * sinYaw;
-        const zz = -x * sinYaw + z * cosYaw;
-        const xr = xx * cosRoll - y * sinRoll;
-        const yr = xx * sinRoll + y * cosRoll;
-        const yp = yr * cosPitch - zz * sinPitch;
-        const zp = yr * sinPitch + zz * cosPitch;
-        const perspective = 720 / (720 - zp);
-        // Geometric interpolation keeps the shrinking speed proportional to size.
-        const point = ribbon.points[i];
-        point.x = w / 2 + xr * perspective * size + shift;
-        point.y = h / 2 + yp * perspective * size;
-        point.z = zp;
-        if (previous) ribbon.z += (previous.z + point.z) / 2;
-        previous = point;
+    const geometryKey = `${w}:${h}:${titleWidth}`;
+    const settledGeometry = t >= 5.8 && reveal === 1 && titleTravel === 1;
+    if (!settledGeometry || this.geometryKey !== geometryKey) {
+      for (let strand = 0; strand < 3; strand++) {
+        const ribbon = this.ribbons[strand];
+        ribbon.z = 0;
+        let previous;
+        const phase = (strand * Math.PI * 2) / 3;
+        const uncoil = this.ease((t - 1.95 - strand * 0.06) / 2.2);
+        const breath = uncoil * (1 - this.ease((t - 2.6) / 1.65));
+        const yaw = 0.12 * Math.sin((t - 1.95) * 0.8) * uncoil * (1 - face);
+        const cosYaw = Math.cos(yaw), sinYaw = Math.sin(yaw);
+        for (let i = 0; i <= 110; i++) {
+          const u = i / 110,
+            a = (u - 0.5) * Math.PI * 2;
+          // Keep horizontal travel monotonic so the ribbons cannot fold into knots.
+          // Uncoil in 3D before turning toward
+          // the camera; sizing and depth settle later than the wave shape.
+          const xDance = (u - 0.5) * 440;
+          const yDance =
+            (strand - 1) * 38 +
+            82 * Math.sin(a * 0.72 - flowTime * 0.8 + phase * 0.7);
+          const xWave = (u - 0.5) * 440;
+          const yWave =
+            (((strand - 1) * 17 - 8 * Math.sin(a) - 10 * (u - 0.5)) * 440) / 72;
+          const x = xDance * (1 - uncoil) + xWave * uncoil;
+          const y =
+            yDance * (1 - uncoil) +
+            yWave * uncoil +
+            9 * Math.sin(a * 0.65 - flowTime * 1.1 + phase) * breath;
+          const z = 72 * Math.cos(a * 0.65 + flowTime * 0.6 + phase) * (1 - face);
+          const xx = x * cosYaw + z * sinYaw;
+          const zz = -x * sinYaw + z * cosYaw;
+          const xr = xx * cosRoll - y * sinRoll;
+          const yr = xx * sinRoll + y * cosRoll;
+          const yp = yr * cosPitch - zz * sinPitch;
+          const zp = yr * sinPitch + zz * cosPitch;
+          const perspective = 720 / (720 - zp);
+          // Geometric interpolation keeps the shrinking speed proportional to size.
+          const point = ribbon.points[i];
+          point.x = w / 2 + xr * perspective * size + shift;
+          point.y = h / 2 + yp * perspective * size;
+          point.z = zp;
+          if (previous) ribbon.z += (previous.z + point.z) / 2;
+          previous = point;
+        }
+        ribbon.z /= 110;
+        // All three light passes use precisely the same path.
+        const path = new Path2D();
+        path.moveTo(ribbon.points[0].x, ribbon.points[0].y);
+        for (let i = 1; i < ribbon.points.length; i++)
+          path.lineTo(ribbon.points[i].x, ribbon.points[i].y);
+        ribbon.path = path;
       }
-      ribbon.z /= 110;
+      this.geometryKey = settledGeometry ? geometryKey : null;
     }
     const flash = this.reduced ? 0 : Math.exp(-Math.pow((t - 4.47) / 0.16, 2));
     const blue = this.ease((t - 4.55) / 0.45);
@@ -174,11 +190,7 @@ CF.GuideIntro = class {
             : pass === 1
               ? 6 + glow * 4 * morph
               : 1;
-        ctx.beginPath();
-        ctx.moveTo(first.x, first.y);
-        for (let i = 1; i < points.length; i++)
-          ctx.lineTo(points[i].x, points[i].y);
-        ctx.stroke();
+        ctx.stroke(ribbon.path);
       }
     ctx.shadowBlur = 0;
     if (elapsed >= revealStart + 1.3) {
