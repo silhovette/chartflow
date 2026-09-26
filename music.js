@@ -5,13 +5,26 @@ CF.music = {
   screen: "loading",
   ready: false,
   intro: false,
+  volume: 1,
+  levels: new WeakMap(),
   fades: new Map(),
+  setLevel(media, level) {
+    this.levels.set(media, level);
+    media.volume = level * this.volume;
+  },
+  setVolume(volume) {
+    this.volume = volume;
+    const media = new Set([...(this.background || []), ...this.fades.keys(), this.introMedia]);
+    for (const track of media) {
+      if (track) track.volume = (this.levels.get(track) ?? 0) * volume;
+    }
+  },
   wake() {
     if (this.timer == null) this.timer = setInterval(() => this.tick(), 20);
   },
   fade(media, target, seconds = this.fadeSeconds, done) {
     this.fades.set(media, {
-      from: media.volume, target, start: performance.now(),
+      from: this.levels.get(media) ?? 0, target, start: performance.now(),
       duration: seconds * 1000, done,
     });
     this.wake();
@@ -26,7 +39,7 @@ CF.music = {
     this.update();
   },
   update() {
-    const wanted = this.ready && !this.intro &&
+    const wanted = this.ready && !this.intro && !this.continuingIntro &&
       !["loading", "error", "setup", "record", "processing", "play", "results", "editor"].includes(this.screen);
     if (this.wanted === wanted) return;
     this.wanted = wanted;
@@ -41,7 +54,7 @@ CF.music = {
       this.background = Array.from({ length: 2 }, (_, index) => {
         const media = new Audio("audio/background.mp3");
         media.preload = "auto";
-        media.volume = 0;
+        this.setLevel(media, 0);
         media.onended = () => {
           if (this.wanted && this.current === index) this.nextLoop();
         };
@@ -53,7 +66,7 @@ CF.music = {
     const media = this.background[this.current];
     if (media.paused) {
       this.fades.delete(media);
-      media.volume = 0;
+      this.setLevel(media, 0);
     }
     try {
       await media.play();
@@ -73,7 +86,7 @@ CF.music = {
     const nextIndex = 1 - this.current;
     const next = this.background[nextIndex];
     this.fades.delete(next);
-    next.volume = 0;
+    this.setLevel(next, 0);
     next.currentTime = 0;
     try {
       await next.play();
@@ -97,6 +110,24 @@ CF.music = {
     this.introEnding = false;
     this.fade(media, 1);
   },
+  continueIntro(media) {
+    this.continuingIntro = media;
+    if (this.introMedia !== media) this.watchIntro(media);
+    const finish = () => {
+      if (this.continuingIntro !== media) return;
+      this.continuingIntro = null;
+      if (this.introMedia === media) this.introMedia = null;
+      this.fades.delete(media);
+      media.onended = media.onerror = null;
+      media.removeAttribute("src");
+      media.load();
+      this.update();
+    };
+    media.onended = media.onerror = finish;
+    if (media.ended) finish();
+    else if (media.paused) media.play().catch(finish);
+    this.update();
+  },
   stopIntro(media) {
     if (this.introMedia === media) this.introMedia = null;
     media.onerror = null;
@@ -111,7 +142,7 @@ CF.music = {
     for (const [media, fade] of this.fades) {
       const progress = Math.min(1, (now - fade.start) / fade.duration);
       const eased = progress * progress * (3 - 2 * progress);
-      media.volume = fade.from + (fade.target - fade.from) * eased;
+      this.setLevel(media, fade.from + (fade.target - fade.from) * eased);
       if (progress === 1) {
         this.fades.delete(media);
         fade.done?.();

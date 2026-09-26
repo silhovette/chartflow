@@ -15,6 +15,7 @@
       bindings: structuredClone(CF.bindings),
       sound: true,
       volume: 0.35,
+      musicVolume: 1,
     },
     pending: new Map(),
     saveTimers: new Map(),
@@ -698,9 +699,10 @@
       animated: true,
       dismissOnBackdrop: true,
       className: "settings-dialog",
-      body: `<label class="check-field"><input name="sound" type="checkbox" ${app.settings.sound ? "checked" : ""}> Metronome & feedback sound</label><div class="field settings-volume"><span>Volume</span><div class="settings-volume-row"><input name="volume" type="range" min="0" max="1" step="0.05" value="${app.settings.volume}" aria-label="Volume"><button type="button" class="button small settings-volume-test">Test</button></div></div><div class="section-kicker" style="margin:25px 0 15px">LANE BINDINGS</div>${[4, 5, 6, 7, 8].map((k) => `<div class="settings-mode"><span>${k}K</span><div class="settings-bindings">${app.settings.bindings[k].map((key, i) => `<input name="key-${k}-${i}" value="${E(key)}" maxlength="1" required aria-label="${k}K lane ${i + 1}" pattern="[a-oA-OqQs-zS-Z0-9;]">`).join("")}</div></div>`).join("")}<p style="margin-top:18px;font-size:10px">Use unique letters, numbers, or semicolon in each mode. Space, P, R, Enter and Escape are reserved. Ctrl / Cmd shortcuts always take priority.</p>`,
+      body: `<label class="check-field"><input name="sound" type="checkbox" ${app.settings.sound ? "checked" : ""}> Metronome & feedback sound</label><div class="settings-volumes"><div class="field settings-volume"><span>Sound effects</span><div class="settings-volume-row"><input name="volume" type="range" min="0" max="1" step="0.05" value="${app.settings.volume}" aria-label="Sound effects volume"><button type="button" class="button small settings-volume-test">Test</button></div></div><div class="field settings-volume"><span>Music</span><div class="settings-volume-row"><input name="musicVolume" type="range" min="0" max="1" step="0.05" value="${app.settings.musicVolume}" aria-label="Music volume"></div></div></div><div class="section-kicker" style="margin:25px 0 15px">LANE BINDINGS</div>${[4, 5, 6, 7, 8].map((k) => `<div class="settings-mode"><span>${k}K</span><div class="settings-bindings">${app.settings.bindings[k].map((key, i) => `<input name="key-${k}-${i}" value="${E(key)}" maxlength="1" required aria-label="${k}K lane ${i + 1}" pattern="[a-oA-OqQs-zS-Z0-9;]">`).join("")}</div></div>`).join("")}<p style="margin-top:18px;font-size:10px">Use unique letters, numbers, or semicolon in each mode. Space, P, R, Enter and Escape are reserved. Ctrl / Cmd shortcuts always take priority.</p>`,
       confirm: "Save settings",
       onOpen: (el) => {
+        el.querySelector('[name="musicVolume"]').oninput = (e) => CF.music.setVolume(+e.target.value);
         el.querySelector(".settings-volume-test").onclick = () => {
           const volume = app.audio.volume;
           const enabled = app.audio.enabled;
@@ -741,6 +743,7 @@
         });
       },
     });
+    CF.music.setVolume(app.settings.musicVolume);
     if (!answer) return;
     for (const k of [4, 5, 6, 7, 8])
       app.settings.bindings[k] = Array.from({ length: k }, (_, i) =>
@@ -748,8 +751,10 @@
       );
     app.settings.sound = answer.sound === "on";
     app.settings.volume = +answer.volume;
+    app.settings.musicVolume = +answer.musicVolume;
     app.audio.enabled = app.settings.sound;
     app.audio.volume = app.settings.volume;
+    CF.music.setVolume(app.settings.musicVolume);
     await CF.storage.saveSettings(app.settings);
     renderKeyTest();
     CF.ui.toast("Settings saved");
@@ -764,7 +769,7 @@
     CF.guide.open();
   }
   const actions = {
-    account: () => CF.account.show(),
+    account: () => CF.account.show("achievements"),
     library: async () => {
       if (app.state === "record") {
         await back();
@@ -1130,6 +1135,7 @@
       bindings: structuredClone(CF.bindings),
       sound: true,
       volume: 0.35,
+      musicVolume: 1,
     };
     const settings = await CF.storage.settings();
     if (settings) {
@@ -1154,6 +1160,7 @@
     }
     app.audio.enabled = app.settings.sound;
     app.audio.volume = app.settings.volume;
+    CF.music.setVolume(app.settings.musicVolume);
     app.charts = await CF.storage.all();
     // Upgrade the old starter defaults once; later user speed edits stay intact.
     if (!app.settings.starterSpeed15Applied) {

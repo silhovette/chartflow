@@ -64,6 +64,41 @@ const path = require("node:path");
           await page.goto(pathToFileURL(path.join(__dirname, "../index.html")).href);
           await checkPlaying();
         }
+        const skipPage = await browser.newPage();
+        skipPage.on("pageerror", (error) => errors.push(error.message));
+        await skipPage.goto(pathToFileURL(path.join(__dirname, "../index.html")).href);
+        await skipPage.waitForFunction(() => CF.guide.introMusic);
+        await skipPage.keyboard.press("Space");
+        await skipPage.waitForTimeout(500);
+        assert.ok(await skipPage.evaluate(() => CF.guide.dialog.open && !CF.guide.closing));
+        await skipPage.keyboard.down("Space");
+        await skipPage.keyboard.down("Space");
+        assert.ok(await skipPage.evaluate(() => !CF.guide.closing));
+        await skipPage.keyboard.up("Space");
+        await skipPage.evaluate(() => {
+          window.skipMusic = CF.guide.introMusic;
+          window.skipTime = skipMusic.currentTime;
+          window.pauseEvents = 0;
+          skipMusic.addEventListener("pause", () => pauseEvents++);
+        });
+        await skipPage.keyboard.press("Space");
+        await skipPage.waitForTimeout(200);
+        assert.ok(await skipPage.evaluate(() => {
+          const opacity = +getComputedStyle(CF.guide.dialog).opacity;
+          return CF.guide.closing && CF.guide.dialog.open && opacity > 0 && opacity < 1;
+        }));
+        await skipPage.waitForFunction(() => !CF.guide.dialog.open && !CF.guide.busy);
+        assert.ok(await skipPage.evaluate(() => !skipMusic.paused && skipMusic.currentTime > skipTime));
+        assert.equal(await skipPage.evaluate(() => pauseEvents), 0);
+        assert.ok(await skipPage.evaluate(() => !CF.music.wanted));
+        // The retained track still follows music volume and plays to its natural end.
+        await skipPage.evaluate(() => CF.music.setVolume(0.3));
+        await skipPage.waitForFunction(() => skipMusic.volume === 0.3);
+        await skipPage.evaluate(() => { skipMusic.currentTime = skipMusic.duration - 0.9; });
+        await skipPage.waitForFunction(() => !CF.music.continuingIntro &&
+          CF.music.background?.[CF.music.current]?.volume === 0.3);
+        assert.equal(await skipPage.evaluate(() => skipMusic.getAttribute("src")), null);
+        await skipPage.close();
         assert.deepEqual(errors, []);
         console.log(`PASS: ${blocked ? "blocked audio continues animation without a button" : "autoplay + slow load + local HTML"}, replay and stop.`);
       } finally { await browser.close(); }

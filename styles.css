@@ -152,7 +152,7 @@ small {
   font-size: 9px;
   letter-spacing: 1.8px;
   color: #65717d;
-  margin: 43px 12px 17px;
+  margin: 29px 12px 12px;
 }
 .nav-item {
   display: flex;
@@ -174,6 +174,11 @@ small {
   width: 18px;
   text-align: center;
   color: var(--muted);
+}
+.sidebar > .nav-item {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
 }
 .nav-item:hover {
   background: #ffffff04;
@@ -203,7 +208,7 @@ small {
   color: #a4aeb8;
   padding: 17px 12px 24px;
   border-bottom: 1px solid var(--border);
-  margin-top: 16px;
+  margin-top: 4px;
   margin-bottom: 14px;
 }
 .local-status small {
@@ -1429,6 +1434,14 @@ dialog::backdrop {
 .settings-dialog .dialog-body .field {
   margin-bottom: 8px;
 }
+.settings-volumes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+.settings-dialog .settings-volumes .field {
+  margin-bottom: 4px;
+}
 .settings-volume-row {
   display: flex;
   align-items: center;
@@ -1964,18 +1977,73 @@ body[data-screen="editor"] .editor-workspace {
 }
 /* Local profiles, portable saves and achievement collection. */
 .user-chip {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
+  width: calc(100% - 12px);
   text-align: left;
-  padding: 12px 8px;
+  padding: 7px 8px;
   margin-bottom: 12px;
   color: var(--text);
   background: transparent;
   border: 1px solid var(--border);
   border-radius: 12px;
   cursor: pointer;
+}
+@property --aura-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.user-chip-surface {
+  display: none;
+}
+.user-chip.all-achievements .user-chip-surface {
+  display: block;
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border: 1px solid var(--border);
+  border-radius: inherit;
+  background: #0b0f15;
+  pointer-events: none;
+}
+.user-chip.all-achievements:hover .user-chip-surface {
+  background: #101d23;
+}
+.user-chip.all-achievements::before,
+.user-chip.all-achievements::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: -2;
+  border-radius: inherit;
+}
+.user-chip.all-achievements::before {
+  inset: -6px -15px;
+  background: radial-gradient(ellipse, transparent 32%, rgba(111, 229, 255, .3) 48%, rgba(69, 194, 239, .12) 62%, transparent 76%);
+  filter: blur(7px);
+  animation: achievement-breathe 5s ease-in-out infinite alternate;
+}
+.user-chip.all-achievements::after {
+  inset: -15px -27px;
+  background: repeating-conic-gradient(from var(--aura-angle), rgba(150, 239, 255, .02) 0deg, rgba(121, 226, 255, .38) 7deg, rgba(80, 199, 246, .04) 13deg, transparent 23deg, rgba(139, 237, 255, .25) 29deg, transparent 37deg);
+  mask-image: radial-gradient(ellipse, transparent 27%, #000 40%, rgba(0, 0, 0, .55) 51%, transparent 72%);
+  filter: blur(4px);
+  animation: achievement-rays 24s linear infinite;
+}
+@keyframes achievement-rays {
+  to { --aura-angle: 360deg; }
+}
+@keyframes achievement-breathe {
+  from { opacity: .6; transform: scale(.96); }
+  to { opacity: 1; transform: scale(1.03); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .user-chip.all-achievements::before,
+  .user-chip.all-achievements::after { animation: none; }
 }
 #user-avatar,
 .profile-monogram {
@@ -2017,8 +2085,23 @@ body[data-screen="editor"] .editor-workspace {
 .profile-monogram {
   width: 76px;
   height: 76px;
+  padding: 0;
   font-size: 32px;
   border-radius: 22px;
+}
+#user-avatar.has-image,
+.profile-monogram.has-image {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#user-avatar img,
+.profile-monogram img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
 }
 .profile-summary .stat-grid {
   flex: 1;
@@ -2149,6 +2232,17 @@ body[data-screen="editor"] .editor-workspace {
   color: var(--cyan);
   font-size: 29px;
 }
+.session-row .session-deleted {
+  display: inline-block;
+  margin: 0 0 0 7px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.sessions-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+}
 .save-row {
   display: flex;
   justify-content: space-between;
@@ -2197,6 +2291,44 @@ body[data-screen="editor"] .editor-workspace {
 }
 #profile-switch {
   max-width: 190px;
+  padding: 7px 12px;
+  font-size: 11px;
+}
+.profile-actions > select,
+.profile-actions > .button {
+  height: 32px;
+}
+#avatar-options {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: 160px;
+  padding: 5px;
+  background: linear-gradient(145deg, #10161ee6, #080c12f2);
+  backdrop-filter: blur(20px) saturate(135%);
+  -webkit-backdrop-filter: blur(20px) saturate(135%);
+  border: 1px solid #ffffff16;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px #0007, inset 0 1px 0 #ffffff0c;
+}
+#avatar-options button {
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-size: 12px;
+  transition: background 160ms ease;
+}
+#avatar-options button + button {
+  margin-top: 4px;
+}
+#avatar-options button:hover,
+#avatar-options button:focus-visible {
+  background: #6fe7d214;
 }
 @media (max-width: 1200px) {
   .achievement-grid {
@@ -2229,9 +2361,16 @@ body[data-screen="editor"] .editor-workspace {
   .profile-summary {
     padding: 20px;
     gap: 15px;
+    flex-wrap: wrap;
   }
   .profile-monogram {
-    display: none;
+    width: 48px;
+    height: 48px;
+    font-size: 24px;
+    border-radius: 14px;
+  }
+  .profile-summary .stat-grid {
+    flex-basis: 100%;
   }
   .profile-summary .stat strong {
     font-size: 23px;
@@ -2274,7 +2413,7 @@ body[data-screen="editor"] .editor-workspace {
   background: none;
   border: 0;
   padding: 10px 8px;
-  margin: 0 0 14px;
+  margin: 0 0 4px;
   font-size: 12px;
 }
 .guide-link > span:first-child {

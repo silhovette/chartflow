@@ -1,6 +1,91 @@
 "use strict";
 CF.account = {
-  panel: "overview",
+  panel: "achievements",
+  sessionRows(records) {
+    const E = CF.ui.escape;
+    const chartIds = new Set(CF.app.charts.map((chart) => chart.id));
+    return records.map((r) => `<article class="glass session-row"><span class="session-grade">${E(r.grade)}</span><div><strong>${E(r.name)}</strong>${chartIds.has(r.chartId) ? "" : '<small class="session-deleted">deleted</small>'}<small>${r.keyCount}K · ${new Date(r.at).toLocaleString()}</small></div><span>${r.accuracy.toFixed(2)}%<small>Accuracy</small></span><span>${r.combo}<small>Max combo</small></span><span>${r.score.toLocaleString()}<small>Score</small></span></article>`).join("");
+  },
+  showMoreSessions() {
+    const list = document.querySelector("#recent-sessions");
+    if (!list) return;
+    const count = list.children.length;
+    const records = CF.progress.profile.history.slice(count, count + 10);
+    list.insertAdjacentHTML("beforeend", this.sessionRows(records));
+    const added = [...list.children].slice(count);
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      added.forEach((row, index) => row.animate([
+        { opacity: 0, transform: "translateY(10px)" },
+        { opacity: 1, transform: "translateY(0)" },
+      ], { duration: 350, delay: index * 30, easing: "ease-out", fill: "backwards" }));
+    }
+    if (list.children.length >= CF.progress.profile.history.length) {
+      document.querySelector(".sessions-more")?.remove();
+      if (added[0]) {
+        added[0].tabIndex = -1;
+        added[0].focus({ preventScroll: true });
+      }
+    }
+  },
+  async resetAvatar() {
+    delete CF.progress.profile.avatar;
+    await CF.progress.save();
+    await this.show();
+    CF.ui.toast("Avatar reset");
+  },
+  changeAvatar() {
+    const profile = CF.progress.profile;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.id = "avatar-upload";
+    input.hidden = true;
+    document.querySelector("#avatar-upload")?.remove();
+    document.body.append(input);
+    input.oncancel = () => input.remove();
+    input.onchange = async () => {
+      let bitmap;
+      try {
+        const file = input.files[0];
+        if (!file) return;
+        const signature = await file.slice(0, 6).text();
+        const isGif = signature === "GIF87a" || signature === "GIF89a";
+        if (isGif && file.size > 5 * 1024 * 1024) {
+          CF.ui.toast("Choose a GIF smaller than 5 MB.");
+          return;
+        }
+        bitmap = await createImageBitmap(file);
+        if (isGif) {
+          // Preserve every frame and its timing; canvas would flatten the GIF.
+          profile.avatar = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(new Blob([file], { type: "image/gif" }));
+          });
+        } else {
+          const canvas = document.createElement("canvas");
+          canvas.width = canvas.height = 256;
+          const size = Math.min(bitmap.width, bitmap.height);
+          canvas.getContext("2d").drawImage(bitmap,
+            (bitmap.width - size) / 2, (bitmap.height - size) / 2, size, size,
+            0, 0, 256, 256);
+          profile.avatar = canvas.toDataURL("image/png");
+        }
+        if (CF.progress.profile === profile) {
+          await CF.progress.save();
+          if (CF.app.state === "account") await this.show();
+        } else await CF.storage.saveProfile(profile);
+        CF.ui.toast("Avatar updated");
+      } catch (error) {
+        CF.ui.toast("Could not save this image. Try another image.");
+      } finally {
+        bitmap?.close();
+        input.remove();
+      }
+    };
+    input.click();
+  },
   async show(panel = this.panel) {
     if (!(await CF.workspace.leave())) return;
     this.panel = panel;
@@ -9,12 +94,13 @@ CF.account = {
       s = p.stats,
       profiles = await CF.storage.profiles(),
       slots = await CF.storage.slots();
-    const unlocked = Object.keys(p.unlocked).length;
+    const unlocked = CF.progress.catalogue.filter(([id]) => p.unlocked[id]).length;
     const button = (label, action, extra = "") =>
       `<button class="button small" data-account="${action}" ${extra}>${label}</button>`;
     let content = "";
     if (panel === "overview")
-      content = `<div class="section-bar"><h3>Recent sessions</h3><small>Full chart runs · latest 200</small></div><div class="session-list">${p.history.length ? p.history.map((r) => `<article class="glass session-row"><span class="session-grade">${E(r.grade)}</span><div><strong>${E(r.name)}</strong><small>${r.keyCount}K · ${new Date(r.at).toLocaleString()}</small></div><span>${r.accuracy.toFixed(2)}%<small>Accuracy</small></span><span>${r.combo}<small>Max combo</small></span><span>${r.score.toLocaleString()}<small>Score</small></span></article>`).join("") : '<div class="glass empty-state"><h2>Your next chapter starts here.</h2><p>Play a full chart to save your score and work toward achievements.</p><button class="button primary" data-action="library">Explore your charts →</button></div>'}</div>`;
+      content = `<div class="section-bar"><h3>Recent sessions</h3><small>Up to latest 200</small></div><div class="session-list" id="recent-sessions">${p.history.length ? this.sessionRows(p.history.slice(0, 10)) : '<div class="glass empty-state"><h2>Your next chapter starts here.</h2><p>Play a full chart to save your score and work toward achievements.</p><button class="button primary" data-action="library">Explore your charts →</button></div>'}</div>${p.history.length > 10 ? '<div class="sessions-more"><button class="button small" data-account="more-sessions" aria-controls="recent-sessions">Show 10 more</button></div>' : ''}`;
+
     if (panel === "achievements")
       content = `<p class="account-note">Achievements belong to this user. Gameplay achievements count full runs from the start; editor tests and previews are practice.</p><div class="achievement-grid">${CF.progress.catalogue
         .map(([id, name, description, key, target, icon]) => {
@@ -36,9 +122,9 @@ CF.account = {
       }</div><p class="account-note">Exports are portable JSON files. Import creates a separate local user. Named saves stay in this browser; export a copy to keep it outside the browser.</p>`;
     CF.workspace.render(
       "account",
-      `<div class="page-heading"><div><div class="eyebrow">YOUR LOCAL PROFILE</div><h1>${E(p.name)}</h1><p>Your rhythms, milestones, and saved moments.</p></div><div class="actions"><select id="profile-switch" aria-label="Switch user">${profiles.map((u) => `<option value="${u.id}" ${u.id === p.id ? "selected" : ""}>${E(u.name)}</option>`).join("")}</select>${button("＋ New user", "new-user")}${button("Rename", "rename-user")}</div></div><section class="glass profile-summary"><div class="profile-monogram">${E(p.name.slice(0, 1).toUpperCase())}</div><div class="stat-grid"><div class="stat"><strong>${s.plays || 0}</strong><small>Sessions completed</small></div><div class="stat"><strong>${s.bestCombo || 0}</strong><small>Best combo</small></div><div class="stat"><strong>${(s.bestAccuracy || 0).toFixed(2)}%</strong><small>Best accuracy</small></div><div class="stat"><strong>${unlocked}<em> / ${CF.progress.catalogue.length}</em></strong><small>Achievements</small></div></div></section><nav class="account-tabs" aria-label="Profile sections">${[
-        ["overview", "Overview"],
+      `<div class="page-heading"><div><div class="eyebrow">YOUR LOCAL PROFILE</div><h1>${E(p.name)}</h1><p>Your rhythms, milestones, and saved moments.</p></div><div class="actions profile-actions"><select id="profile-switch" aria-label="Switch user">${profiles.map((u) => `<option value="${u.id}" ${u.id === p.id ? "selected" : ""}>${E(u.name)}</option>`).join("")}</select>${button("＋ New user", "new-user")}${button("Rename", "rename-user")}</div></div><section class="glass profile-summary"><button type="button" class="profile-monogram ${CF.progress.avatarSource(p.avatar) ? "has-image" : ""}" popovertarget="avatar-options" aria-label="Avatar options">${CF.progress.avatarMarkup(p)}</button><div id="avatar-options" popover="auto"><button type="button" data-account="avatar">Change avatar</button><button type="button" data-account="reset-avatar">Reset avatar</button></div><div class="stat-grid"><div class="stat"><strong>${s.plays || 0}</strong><small>Sessions completed</small></div><div class="stat"><strong>${s.bestCombo || 0}</strong><small>Best combo</small></div><div class="stat"><strong>${(s.bestAccuracy || 0).toFixed(2)}%</strong><small>Best accuracy</small></div><div class="stat"><strong>${unlocked}<em> / ${CF.progress.catalogue.length}</em></strong><small>Achievements</small></div></div></section><nav class="account-tabs" aria-label="Profile sections">${[
         ["achievements", "Achievements"],
+        ["overview", "Overview"],
         ["saves", "Save manager"],
       ]
         .map(
@@ -48,6 +134,17 @@ CF.account = {
         .join("")}</nav>${content}`,
       "Profile / " + p.name,
     );
+    const avatarButton = document.querySelector('[popovertarget="avatar-options"]');
+    let avatarPoint;
+    avatarButton.addEventListener("click", (event) => {
+      avatarPoint = event.detail > 0 ? { x: event.clientX, y: event.clientY } : null;
+    });
+    document.querySelector("#avatar-options").addEventListener("beforetoggle", (event) => {
+      if (event.newState !== "open") return;
+      const rect = avatarButton.getBoundingClientRect();
+      event.target.style.left = Math.max(8, Math.min((avatarPoint?.x ?? rect.right) + 10, innerWidth - 168)) + "px";
+      event.target.style.top = Math.max(8, Math.min((avatarPoint?.y ?? rect.bottom) + 10, innerHeight - 94)) + "px";
+    });
     document.querySelector("#profile-switch").onchange = async (e) => {
       try {
         await CF.workspace.activate(e.target.value);
@@ -83,6 +180,7 @@ CF.account = {
           bindings: structuredClone(CF.bindings),
           sound: true,
           volume: 0.35,
+          musicVolume: 1,
         },
       },
       p.id,
@@ -263,6 +361,7 @@ CF.account = {
       starterSpeed15Applied: data.settings?.starterSpeed15Applied === true,
       sound: data.settings?.sound !== false,
       volume: 0.35,
+      musicVolume: 1,
       bindings: structuredClone(CF.bindings),
     };
     if (
@@ -271,6 +370,12 @@ CF.account = {
       data.settings.volume <= 1
     )
       settings.volume = data.settings.volume;
+    if (
+      Number.isFinite(data.settings?.musicVolume) &&
+      data.settings.musicVolume >= 0 &&
+      data.settings.musicVolume <= 1
+    )
+      settings.musicVolume = data.settings.musicVolume;
     for (const mode of [4, 5, 6, 7, 8]) {
       const keys = data.settings?.bindings?.[mode];
       if (keys === undefined) continue;
@@ -287,6 +392,7 @@ CF.account = {
       profile: {
         id: CF.id(),
         name: source.name.trim(),
+        avatar: CF.progress.avatarSource(source.avatar),
         createdAt: Date.now(),
         stats,
         unlocked,
@@ -325,14 +431,29 @@ CF.account = {
     input.click();
   },
 };
+document.addEventListener("keydown", (e) => {
+  const menu = document.querySelector("#avatar-options:popover-open");
+  if (e.key !== "Escape" || !menu) return;
+  e.preventDefault();
+  e.stopPropagation();
+  menu.hidePopover();
+  document.querySelector('[popovertarget="avatar-options"]')?.focus();
+}, true);
+
 document.addEventListener("click", async (e) => {
   const el = e.target.closest("[data-account]");
   if (!el) return;
   e.preventDefault();
   try {
     const a = el.dataset.account;
-    if (a === "tab") await CF.account.show(el.dataset.panel);
+    if (a === "more-sessions") CF.account.showMoreSessions();
+    else if (a === "tab") await CF.account.show(el.dataset.panel);
     else if (a === "new-user") await CF.account.newUser();
+    else if (a === "avatar") {
+      document.querySelector("#avatar-options").hidePopover();
+      CF.account.changeAvatar();
+    }
+    else if (a === "reset-avatar") await CF.account.resetAvatar();
     else if (a === "rename-user") await CF.account.rename();
     else if (a === "save") await CF.account.createSave();
     else if (a === "export") await CF.account.export();

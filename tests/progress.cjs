@@ -6,10 +6,13 @@ function progress() {
   let saved;
   const scope = {
     structuredClone,
-    document: { querySelector: () => ({}) },
+    document: { querySelector: () => ({
+      querySelector: () => null,
+      classList: { toggle() {} },
+    }) },
     CF: {
       id: () => crypto.randomUUID(),
-      ui: { toast() {} },
+      ui: { toast() {}, escape: (value) => String(value) },
       storage: {
         async saveProfile(p) {
           saved = p;

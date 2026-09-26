@@ -74,6 +74,7 @@ CF.guide = {
     this.busy = false;
     this.closing = false;
     this.introSeen = false;
+    this.lastIntroSpace = null;
     this.navigation = 0;
     this.lastWheel = 0;
     this.wheelDelta = 0;
@@ -84,6 +85,18 @@ CF.guide = {
       this.close();
     };
     this.dialog.onkeydown = (e) => {
+      if (e.code === "Space" && this.step === -1 &&
+          !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.repeat || this.closing) return;
+        const now = performance.now();
+        if (this.lastIntroSpace !== null && now - this.lastIntroSpace <= 450) {
+          this.lastIntroSpace = null;
+          this.close({ preserveAudio: true });
+        } else this.lastIntroSpace = now;
+        return;
+      }
       if (
         !["ArrowLeft", "ArrowRight"].includes(e.key) ||
         e.altKey ||
@@ -284,7 +297,7 @@ CF.guide = {
     }
     if (token === this.navigation) this.busy = false;
   },
-  async close() {
+  async close({ preserveAudio = false } = {}) {
     if (this.closing || !this.dialog.open) return;
     this.closing = true;
     clearTimeout(this.exitTimer);
@@ -292,12 +305,15 @@ CF.guide = {
     this.transition?.cancel();
     this.busy = true;
     this.intro?.stop();
-    this.stopIntroMusic();
+    if (preserveAudio && this.introMusic) {
+      CF.music.continueIntro(this.introMusic);
+      this.introMusic = null;
+    } else this.stopIntroMusic();
     this.observer?.disconnect();
     const opacity = +getComputedStyle(this.dialog).opacity;
     this.dialog.dataset.state = "closing";
     let cover;
-    if (this.introOnly) {
+    if (this.introOnly || preserveAudio) {
       await this.motion(this.dialog, [{ opacity }, { opacity: 0 }], 900);
     } else {
       cover = document.createElement("div");

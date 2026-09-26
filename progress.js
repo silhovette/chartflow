@@ -90,9 +90,28 @@ CF.progress = {
     const p = this.profile;
     if (!p) return;
     document.querySelector("#user-name").textContent = p.name;
-    document.querySelector("#user-avatar").textContent = p.name
-      .slice(0, 1)
-      .toUpperCase();
+    const avatar = document.querySelector("#user-avatar");
+    const src = this.avatarSource(p.avatar);
+    const currentImage = avatar.querySelector("img");
+    if (src ? currentImage?.getAttribute("src") !== src :
+        currentImage || avatar.textContent !== p.name.slice(0, 1).toUpperCase()) {
+      avatar.innerHTML = this.avatarMarkup(p);
+    }
+    avatar.classList.toggle("has-image", !!src);
+    document.querySelector(".user-chip").classList.toggle(
+      "all-achievements", this.catalogue.every(([id]) => !!p.unlocked[id]),
+    );
+  },
+  avatarSource(value) {
+    if (typeof value !== "string") return "";
+    const limit = value.startsWith("data:image/gif;base64,")
+      ? 22 + 4 * Math.ceil(5 * 1024 * 1024 / 3) : 1024 * 1024;
+    return value.length <= limit &&
+      /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(value) ? value : "";
+  },
+  avatarMarkup(profile) {
+    const src = this.avatarSource(profile.avatar);
+    return src ? `<img src="${src}" alt="" />` : CF.ui.escape(profile.name.slice(0, 1).toUpperCase());
   },
   event(type, amount = 1) {
     const p = this.profile;
@@ -109,6 +128,7 @@ CF.progress = {
         earned.push(name);
       }
     const snapshot = structuredClone(p);
+    this.updateBadge();
     this.pending = this.pending
       .catch(() => {})
       .then(() => CF.storage.saveProfile(snapshot));
