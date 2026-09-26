@@ -157,7 +157,7 @@ const assert = require("node:assert/strict");
     assert.equal(await p.evaluate(() => CF.app.state), "library");
     assert.equal(await p.evaluate(() => CF.guide.introMusic), null);
     await p.setViewportSize({ width: 1440, height: 1000 });
-    await p.locator('.page-heading [data-action="new"]').click();
+    await p.locator('.hero [data-action="new"]').click();
     await p.locator('[value="record"]').click();
     await p.keyboard.press("Space");
     await p.waitForFunction(() => CF.app.session.phase === "running");

@@ -37,7 +37,7 @@ const { pathToFileURL } = require("node:url");
   await page.reload();
   await page.waitForSelector(".chart-row");
   assert.equal(await page.evaluate(() => CF.app.settings.bindings[4][0]), "a");
-  await page.locator('.page-heading [data-action="new"]').click();
+  await page.locator('.hero [data-action="new"]').click();
   await page.locator('[data-keys="6"]').click();
   await page.locator("h1").click();
   for (const k of ["s", "d", "f", "j", "k", "l"]) await page.keyboard.down(k);

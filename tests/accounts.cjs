@@ -11,7 +11,7 @@ const assert = require("node:assert/strict");
     await page.goto("http://127.0.0.1:4173");
     await page.locator('#guide [data-guide="close"]').click();
     await page.waitForSelector(".chart-row");
-    await page.locator('.page-heading [data-action="new"]').click();
+    await page.locator('.hero [data-action="new"]').click();
     await page.locator('[name="name"]').fill("Saved pattern");
     await page.locator('[value="blank"]').click();
     await page.waitForFunction(() => CF.app.state === "editor");

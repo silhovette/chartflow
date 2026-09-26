@@ -15,7 +15,7 @@ const assert = require("node:assert/strict");
     await page.goto("http://127.0.0.1:4173");
     await page.locator('#guide [data-guide="close"]').click();
     await page.waitForSelector(".chart-row");
-    await page.locator('.page-heading [data-action="new"]').click();
+    await page.locator('.hero [data-action="new"]').click();
     await page.locator('[name="name"]').fill("Built by hand");
     await page.locator('[name="bpm"]').fill("120");
     await page.locator('[data-keys="8"]').click();

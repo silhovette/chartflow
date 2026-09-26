@@ -27,7 +27,7 @@ const path = require("node:path");
   assert.ok(
     await page.evaluate(() => CF.app.charts.every((c) => c.scrollSpeed === 15)),
   );
-  await page.locator('.page-heading [data-action="new"]').click();
+  await page.locator('.hero [data-action="new"]').click();
   await page.locator('[name="name"]').fill("Browser verification");
   assert.equal(await page.locator('[name="speed"]').inputValue(), "15.0");
   await page.locator("h1").click();

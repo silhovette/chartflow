@@ -40,7 +40,7 @@ const path = require("node:path");
       await page.evaluate(() => CF.app.settings.bindings[5][0]),
       "d",
     );
-    await page.locator('.page-heading [data-action="new"]').click();
+    await page.locator('.hero [data-action="new"]').click();
     await page.locator('[data-keys="8"]').click();
     await page.locator("h1").click();
     const keys = ["a", "s", "d", "f", "j", "k", "l", ";"];
