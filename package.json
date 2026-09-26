@@ -1,0 +1,62 @@
+{
+  "name": "chartflow",
+  "version": "0.1.0",
+  "description": "ChartFlow desktop rhythm chart editor and game",
+  "main": "main.cjs",
+  "author": "AZX777",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "preview": "node server.cjs",
+    "test": "node --test tests/core.cjs tests/progress.cjs tests/editor-history.cjs",
+    "dist": "electron-builder --win nsis portable",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.azx777.chartflow",
+    "productName": "ChartFlow",
+    "asar": true,
+    "files": [
+      "index.html",
+      "styles.css",
+      "*.js",
+      "*.cjs",
+      "audio/**/*",
+      "avatars/**/*",
+      "artifacts/**/*",
+      "!tests{,/**/*}",
+      "!README.md"
+    ],
+    "directories": {
+      "output": "release"
+    },
+      "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    }
+  }
+}

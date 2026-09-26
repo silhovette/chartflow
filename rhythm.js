@@ -115,6 +115,8 @@ window.CF = window.CF || {};
             this.tone(
               next % 4 === 0 ? 1000 : 650,
               this.ctx.currentTime + Math.max(0, delay) / 1000,
+              0.055,
+              0.5,
             );
           next++;
         }

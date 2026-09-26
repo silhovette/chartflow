@@ -1039,7 +1039,7 @@
         const beat = Math.floor((now - s.countStart) / s.countBeat);
         if (beat >= 0 && beat !== s.lastCount) {
           s.lastCount = beat;
-          app.audio.tone(beat === 0 ? 375 : 290, undefined, 0.045, 0.6);
+          app.audio.tone(beat === 0 ? 375 : 290, undefined, 0.045, 0.15);
           updateStage();
         }
       }

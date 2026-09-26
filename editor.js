@@ -698,7 +698,7 @@ CF.Editor = class {
           note.judged = true;
           this.previewFlashes[note.lane] = now;
           this.previewHits.push({ lane: note.lane, at: now });
-          audio.tone(290 + note.lane * 85, undefined, 0.05, 0.5);
+          audio.tone(290 + note.lane * 85, undefined, 0.05, 0.25);
         }
       }
       this.offset = Math.max(0, CF.toTick(time, this.chart.bpm));
